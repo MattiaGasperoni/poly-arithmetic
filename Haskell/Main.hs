@@ -1,150 +1,152 @@
-{- Haskell program for computing polynomial arithmetic operations. -}
- 
-import Text.Read  (readMaybe)
-import Data.List  (dropWhileEnd)
-import Data.Ratio (Rational, numerator, denominator)
- 
-{- Type alias for a polynomial represented as a list of rational coefficients
-   in ascending order of degree (index 0 = constant term). -}
-type Polynomial = [Rational]
- 
-{- Function normalizza removes trailing zero coefficients from a polynomial:
-   - its only argument is the polynomial to normalize. -}
-normalizza :: Polynomial -> Polynomial
-normalizza = dropWhileEnd (== 0)
- 
-{- Function calcoloGrado computes the degree of a polynomial:
-   - its only argument is the polynomial whose degree is to be computed. -}
-calcoloGrado :: Polynomial -> Int
-calcoloGrado = subtract 1 . length . normalizza
- 
-{- Function convertiR converts a rational number to a readable string:
-   - its only argument is the rational number to convert;
-   - a whole number is printed without denominator (e.g. 3 % 1 -> "3");
-   - a fraction is printed as numerator/denominator (e.g. 1 % 2 -> "1/2"). -}
-convertiR :: Rational -> String
-convertiR r
-    | denominator r == 1 = show (numerator r)
-    | otherwise          = show (numerator r) ++ "/" ++ show (denominator r)
- 
-{- Function stampaPolinomio formats a polynomial as a human-readable string:
-   - its only argument is the polynomial to format;
-   - the zero polynomial is printed as "0";
-   - coefficients equal to 1 or -1 are omitted when multiplying a variable;
-   - terms are printed from the highest degree to the constant term. -}
-stampaPolinomio :: Polynomial -> String
-stampaPolinomio p
-    | null np   = "0"
-    | otherwise = format (reverse (zip [0..] np)) True
+module Main where
+
+import System.IO (hSetBuffering, stdout, BufferMode (..))
+import Text.Read (readMaybe)
+import Data.List (dropWhileEnd)
+
+-- Soglia di tolleranza numerica per i calcoli in virgola mobile (Double).
+-- Serve a prevenire errori di precisione (es. trattare 0.0000001 come zero).
+limite :: Double
+limite = 1e-6
+
+-- Rimuove i coefficienti nulli (o quasi nulli) di grado massimo.
+-- Fondamentale per calcolare il vero grado di un polinomio dopo le operazioni.
+normalizza :: [Double] -> [Double]
+normalizza = dropWhileEnd (\c -> abs c < limite)
+
+-- Restituisce il grado massimo del polinomio (lunghezza della lista normalizzata - 1).
+calcoloGrado :: [Double] -> Int
+calcoloGrado p = max 0 (length (normalizza p) - 1)
+
+-- Gestisce la formattazione stringa dei numeri.
+-- Se il numero è intero o vicinissimo a un intero, omette la parte decimale.
+-- Se è decimale, lo arrotonda stabilmente a 4 cifre decimali.
+converti :: Double -> String
+converti x
+  | abs (x - fromIntegral (round x :: Int)) < limite = show (round x :: Int)
+  | otherwise                                        = show (fromIntegral (round (x * 10000)) / 10000)
+
+-- ---------------------------------------------------------------------------
+-- Visualizzazione Algebrica Canonica
+-- ---------------------------------------------------------------------------
+
+-- Punto di ingresso per la stampa: effettua lo "zip" associando a ogni coefficiente 
+-- il rispettivo grado [0..], inverte la lista per stampare dal grado massimo a scendere.
+stampaPolinomio :: [Double] -> String
+stampaPolinomio p = formattaP (reverse (zip [0..] (normalizza p))) 1
+
+-- Funzione ricorsiva che esamina le coppie (Grado, Coefficiente).
+-- Il parametro "primo" (1 o 0) serve a capire se stiamo stampando il primo monomio
+-- (evitando di stampare il "+" iniziale se il coefficiente è positivo).
+formattaP :: [(Int, Double)] -> Int -> String
+formattaP [] 1 = "0" -- Se la lista è vuota e siamo all'inizio, il polinomio è lo zero idoneo.
+formattaP [] 0 = ""
+formattaP ((g, c):xs) primo
+  | abs c < limite = formattaP xs primo -- Salta i monomi con coefficiente nullo.
+  | otherwise      = stampaSegno c primo ++ mostraMonomio g (abs c) ++ formattaP xs 0
+
+-- Determina la stringa del segno logico-algebrico da interporre.
+stampaSegno :: Double -> Int -> String
+stampaSegno c 1 | c < 0     = "-"      -- Primo monomio negativo.
+                | otherwise = ""       -- Primo monomio positivo (nessun segno).
+stampaSegno c 0 | c < 0     = " - "    -- Monomi intermedi negativi.
+                | otherwise = " + "    -- Monomi intermedi positivi.
+
+-- Formatta il singolo monomio omettendo l'unità (1x diventa x) e le potenze ridondanti (x^1 -> x, x^0 -> n).
+mostraMonomio :: Int -> Double -> String
+mostraMonomio 0 c = converti c                                       -- Grado 0: stampa solo il numero.
+mostraMonomio 1 c | abs (c - 1) < limite = "x"                       -- Grado 1, coeff 1: stampa "x".
+                  | otherwise            = converti c ++ "x"         -- Grado 1, coeff != 1.
+mostraMonomio g c | abs (c - 1) < limite = "x^" ++ show g            -- Grado > 1, coeff 1: stampa "x^g".
+                  | otherwise            = converti c ++ "x^" ++ show g
+
+-- ---------------------------------------------------------------------------
+-- Operazioni Aritmetiche Elementari
+-- ---------------------------------------------------------------------------
+
+-- Somma termine a termine sfruttando il pattern matching sulle liste.
+addizione :: [Double] -> [Double] -> [Double]
+addizione [] ys = normalizza ys
+addizione xs [] = normalizza xs
+addizione (x:xs) (y:ys) = normalizza ((x + y) : addizione xs ys)
+
+-- Sottrazione termine a termine. Se la prima lista finisce, inverte il segno della seconda.
+sottrazione :: [Double] -> [Double] -> [Double]
+sottrazione [] ys = normalizza (map negate ys)
+sottrazione xs [] = normalizza xs
+sottrazione (x:xs) (y:ys) = normalizza ((x - y) : sottrazione xs ys)
+
+-- Moltiplicazione basata sulla distribuzione: moltiplica il primo coefficiente di A 
+-- per tutto B, e vi somma il resto riscalato di un grado (inserendo lo 0 in testa).
+moltiplicazione :: [Double] -> [Double] -> [Double]
+moltiplicazione [] _ = []
+moltiplicazione _ [] = []
+moltiplicazione (x:xs) ys = normalizza (addizione (map (* x) ys) (0 : moltiplicazione xs ys))
+
+-- ---------------------------------------------------------------------------
+-- Divisione Euclidea e Algoritmo di Euclide (MCD)
+-- ---------------------------------------------------------------------------
+
+-- Interfaccia pubblica per la divisione. Invoca la funzione ricorsiva con accumulatore vuoto [].
+divisioneConResto :: [Double] -> [Double] -> ([Double], [Double])
+divisioneConResto n d = dividiRic (normalizza n) (normalizza d) []
+
+-- Funzione ricorsiva di divisione (Algoritmo Top-Down).
+dividiRic :: [Double] -> [Double] -> [Double] -> ([Double], [Double])
+dividiRic divid divis qAcc
+  | length divid < length divis = (normalizza qAcc, normalizza divid) -- Caso base: grado Dividendo < grado Divisore.
+  | otherwise                   = dividiRic nuovoDivid divis nuovoQAcc
   where
-    np = normalizza p
-    format [] _               = ""
-    format ((e, c) : xs) isFirst =
-        sign ++ coeff ++ variable ++ format xs False
-      where
-        sign | isFirst   = if c < 0 then "-" else ""
-             | c > 0     = " + "
-             | otherwise = " - "
-        absC = abs c
-        coeff    | absC /= 1 || e == 0 = convertiR absC
-                 | otherwise           = ""
-        variable | e == 0              = ""
-                 | e == 1              = "x"
-                 | otherwise           = "x^" ++ show e
- 
-{- Function zipWithAll applies a binary operation to two polynomials
-   coefficient by coefficient, padding the shorter one with zeros:
-   - the first argument is the binary operation to apply;
-   - the second argument is the first polynomial;
-   - the third argument is the second polynomial. -}
-zipWithAll :: (Rational -> Rational -> Rational) -> Polynomial -> Polynomial -> Polynomial
-zipWithAll _ []     []     = []
-zipWithAll f (x:xs) []     = f x 0 : zipWithAll f xs []
-zipWithAll f []     (y:ys) = f 0 y : zipWithAll f [] ys
-zipWithAll f (x:xs) (y:ys) = f x y : zipWithAll f xs ys
- 
-{- Function addizione computes the sum of two polynomials:
-   - the first argument is the first polynomial;
-   - the second argument is the second polynomial. -}
-addizione :: Polynomial -> Polynomial -> Polynomial
-addizione xs ys = normalizza $ zipWithAll (+) xs ys
- 
-{- Function sottrazione computes the difference of two polynomials:
-   - the first argument is the first polynomial;
-   - the second argument is the second polynomial. -}
-sottrazione :: Polynomial -> Polynomial -> Polynomial
-sottrazione xs ys = normalizza $ zipWithAll (-) xs ys
- 
-{- Function moltiplicazione computes the product of two polynomials:
-   - the first argument is the first polynomial;
-   - the second argument is the second polynomial. -}
-moltiplicazione :: Polynomial -> Polynomial -> Polynomial
-moltiplicazione []     _ = []
-moltiplicazione (a:as) bs =
-    normalizza $ zipWithAll (+) (map (* a) bs) (0 : moltiplicazione as bs)
- 
-{- Function divisioneConResto computes the Euclidean division of two polynomials,
-   returning the quotient and the remainder as an exact pair using rational arithmetic:
-   - the first argument is the dividend polynomial;
-   - the second argument is the divisor polynomial. -}
-divisioneConResto :: Polynomial -> Polynomial -> (Polynomial, Polynomial)
-divisioneConResto n d
-    | null nd   = error "Division by zero polynomial"
-    | gN < gD   = ([], nn)
-    | otherwise =
-        let diff            = gN - gD
-            qCoeff          = (nn !! gN) / (nd !! gD)
-            qMonomio        = replicate diff 0 ++ [qCoeff]
-            restoParziale   = sottrazione n (moltiplicazione qMonomio d)
-            (qRest, rFinal) = divisioneConResto restoParziale d
-        in  (addizione qMonomio qRest, rFinal)
-  where
-    nn = normalizza n
-    nd = normalizza d
-    gN = calcoloGrado n
-    gD = calcoloGrado d
- 
-{- Function calcoloMCD computes the monic greatest common divisor of two polynomials
-   using the Euclidean algorithm:
-   - the first argument is the first polynomial;
-   - the second argument is the second polynomial. -}
-calcoloMCD :: Polynomial -> Polynomial -> Polynomial
-calcoloMCD a b
-    | null nb   = monico na
-    | otherwise = calcoloMCD nb (snd $ divisioneConResto na nb)
-  where
-    na = normalizza a
-    nb = normalizza b
-    monico []  = []
-    monico xs  = map (/ last xs) xs
- 
-{- The parametric input/output action leggi reads a polynomial from the keyboard
-   as a sequence of integer coefficients in ascending order of degree:
-   - its only argument is a string labeling the polynomial being read. -}
-leggi :: String -> IO Polynomial
+    coeffDivid = last divid                             -- Coefficiente direttore del dividendo.
+    coeffDivis = last divis                             -- Coefficiente direttore del divisore.
+    diffGrado  = length divid - length divis            -- Differenza di grado tra i due polinomi.
+    coeffQ     = coeffDivid / coeffDivis                -- Coefficiente del monomio quoziente parziale.
+    monomio    = replicate diffGrado 0 ++ [coeffQ]      -- Creazione del monomio in forma di lista densa.
+    sottraendo = moltiplicazione divis monomio         -- Calcolo del sottraendo.
+    nuovoDivid = sottrazione divid sottraendo           -- Sottrazione per ottenere il nuovo dividendo parziale.
+    nuovoQAcc  = addizione qAcc monomio                 -- Accumulazione del quoziente.
+
+-- Calcola l'MCD ripulendo preventivamente gli input.
+calcoloMCD :: [Double] -> [Double] -> [Double]
+calcoloMCD a b = mcdEuclide (normalizza a) (normalizza b)
+
+-- Algoritmo di Euclide puro: scorre i resti finché il divisore non si azzera ([]).
+mcdEuclide :: [Double] -> [Double] -> [Double]
+mcdEuclide a [] = monico a -- Quando il resto si azzera, l'MCD è l'ultimo divisore non nullo reso monico.
+mcdEuclide a b  = mcdEuclide b (snd (divisioneConResto a b))
+
+-- Rende monico un polinomio dividendo tutti i suoi coefficienti per il coefficiente direttore (l'ultimo).
+monico :: [Double] -> [Double]
+monico [] = []
+monico xs = map (/ last xs) xs
+
+-- ---------------------------------------------------------------------------
+-- Main Loop ed I/O
+-- ---------------------------------------------------------------------------
+
+-- Legge una riga inserita dall'utente, la spezza sugli spazi e tenta il parsing sicuro in Double.
+leggi :: String -> IO [Double]
 leggi nome = do
-    putStr $ "Inserisci i coefficienti del polinomio " ++ nome ++ " (ordine crescente, interi): "
+    putStr $ "Inserisci i coefficienti del polinomio " ++ nome ++ " separati da spazi (ordine crescente): "
     line <- getLine
-    case mapM (fmap toRational . (readMaybe :: String -> Maybe Int)) (words line) of
+    validaParsea (words line)
+  where
+    validaParsea s = case mapM readMaybe s of
         Just coeffs -> return (normalizza coeffs)
-        Nothing     -> do putStrLn ">> Errore: inserire solo numeri interi separati da spazi."
-                          leggi nome
- 
+        Nothing     = putStrLn "Errore di formato! Riprova." >> leggi nome
+
 main :: IO ()
 main = do
+    hSetBuffering stdout NoBuffering
     pA <- leggi "A"
     pB <- leggi "B"
-    putStrLn "Polinomio A:"
-    putStrLn $ show (stampaPolinomio pA)
-    putStrLn "Polinomio B:"
-    putStrLn $ show (stampaPolinomio pB)
-    putStrLn "Somma:"
-    putStrLn $ show (stampaPolinomio (addizione pA pB))
-    putStrLn "Prodotto:"
-    putStrLn $ show (stampaPolinomio (moltiplicazione pA pB))
-    putStrLn "Quoziente:"
-    putStrLn $ show (stampaPolinomio (fst (divisioneConResto pA pB)))
-    putStrLn "Resto:"
-    putStrLn $ show (stampaPolinomio (snd (divisioneConResto pA pB)))
-    putStrLn "MCD:"
-    putStrLn $ show (stampaPolinomio (calcoloMCD pA pB))
+    putStrLn $ "\nA: "       ++ stampaPolinomio pA
+    putStrLn $ "B: "         ++ stampaPolinomio pB
+    putStrLn $ "Somma: "     ++ stampaPolinomio (addizione pA pB)
+    putStrLn $ "Differenza: " ++ stampaPolinomio (sottrazione pA pB)
+    putStrLn $ "Prodotto: "  ++ stampaPolinomio (moltiplicazione pA pB)
+    
+    let (q, r) = divisioneConResto pA pB
+    putStrLn $ "Quoziente: " ++ stampaPolinomio q
+    putStrLn $ "Resto: "     ++ stampaPolinomio r
+    putStrLn $ "MCD: "       ++ stampaPolinomio (calcoloMCD pA pB)

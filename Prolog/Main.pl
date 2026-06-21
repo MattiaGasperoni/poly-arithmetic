@@ -1,257 +1,178 @@
-% ============================================================
-% Polinomi in Prolog
-% Conversione da Haskell
-% Rappresentazione: lista di coefficienti in ordine crescente
-% es. 3 + 2x + x^2  =>  [3.0, 2.0, 1.0]
-% ============================================================
+/* =========================================================================
+   Programma Prolog per operazioni ed algoritmi avanzati su polinomi.
+   Pienamente conforme ai criteri DICHIARATIVI delle dispense (No ->, No if).
+   ========================================================================= */
 
+-- Predicato principale (Entry Point) per eseguire l'intero workflow di test.
+main :- 
+    leggi('A', PA),
+    leggi('B', PB),
+    nl, write('Polinomio A: '), stampa_polinomio(PA), nl,
+    write('Polinomio B: '), stampa_polinomio(PB), nl,
+    addizione(PA, PB, S), write('Somma: '), stampa_polinomio(S), nl,
+    sottrazione(PA, PB, D), write('Differenza: '), stampa_polinomio(D), nl,
+    moltiplicazione(PA, PB, P), write('Prodotto: '), stampa_polinomio(P), nl,
+    divisione_con_resto(PA, PB, Q, R),
+    write('Quoziente: '), stampa_polinomio(Q), nl,
+    write('Resto: '), stampa_polinomio(R), nl,
+    calcolo_mcd(PA, PB, M), write('MCD: '), stampa_polinomio(M), nl.
 
-% ---------------------------------------------------------------------------
-% Utility e Normalizzazione
-% ---------------------------------------------------------------------------
+-- Costante di tolleranza per il floating point.
+limite(1e-6).
 
-% limite/1
-% Soglia per considerare un coefficiente come zero
-limite(1.0e-6).
+-- Normalizza il polinomio eliminando gli zeri in coda (che corrispondono ai gradi massimi).
+normalizza(P, P_Norm) :- reverse(P, Rev), rimuovi_zeri_iniziali(Rev, Rev_Pulito), reverse(Rev_Pulito, P_Norm).
 
-% is_zero/1: vero se il valore assoluto è sotto la soglia
-is_zero(C) :-
-    limite(Lim),
-    abs(C) < Lim.
+-- Rimuove ricorsivamente gli elementi vicini allo zero dall'inizio della lista (sfrutta il Cut '!').
+rimuovi_zeri_iniziali([X|XS], R) :- limite(L), abs(X) < L, !, rimuovi_zeri_iniziali(XS, R).
+rimuovi_zeri_iniziali(L, L).
 
-% normalizza(+P, -NP)
-% Haskell: normalizza :: [Double] -> [Double]
-% Rimuove i coefficienti finali prossimi a zero
-normalizza([], []).
-normalizza(P, NP) :-
-    P \= [],
-    reverse(P, Rev),
-    drop_leading_zeros(Rev, Trimmed),
-    reverse(Trimmed, NP).
+-- Calcola il grado del polinomio (Lunghezza della lista normalizzata - 1).
+calcolo_grado([], 0) :- !.
+calcolo_grado(P, G) :- normalizza(P, P_N), length(P_N, Len), Len > 0, !, G is Len - 1.
+calcolo_grado(_, 0).
 
-drop_leading_zeros([], []).
-drop_leading_zeros([H|T], Result) :-
-    ( is_zero(H)
-    -> drop_leading_zeros(T, Result)
-    ;  Result = [H|T]
-    ).
+-- Gestore della formattazione numerica: decide se arrotondare a intero o a 4 decimali.
+scrivi_valore(X) :-
+    limite(L),
+    Diff is abs(X - round(X)),
+    scrivi_valore_scelta(Diff, L, X).
 
-% calcolo_grado(+P, -G)
-% Haskell: calcoloGrado :: [Double] -> Int
-calcolo_grado(P, G) :-
-    normalizza(P, NP),
-    length(NP, L),
-    G is L - 1.
+scrivi_valore_scelta(Diff, L, X) :- Diff < L, !, R is round(X), write(R).
+scrivi_valore_scelta(_, _, X) :- Val is round(X * 10000) / 10000, write(Val).
 
-% converti(+X, -S)
-% Haskell: converti :: Double -> String
-% Stampa come intero se la parte decimale è trascurabile
-converti(X, S) :-
-    limite(Lim),
-    R is round(X),
-    ( abs(X - float(R)) < Lim
-    -> ( R < 0
-       -> format(atom(S), "~w", [R])
-       ;  format(atom(S), "~w", [R])
-       )
-    ;  format(atom(S), "~w", [X])
-    ).
+% -------------------------------------------------------------------------
+% Visualizzazione Algebrica Canonica (Clausole multiple separate, NO ->)
+% -------------------------------------------------------------------------
 
+-- Predicato principale per la stampa algebrica strutturata.
+stampa_polinomio(P) :-
+    normalizza(P, P_N),
+    reverse_zip_gradi(P_N, RevZipped),
+    formatta_p(RevZipped, 1).
 
-% ---------------------------------------------------------------------------
-% Visualizzazione
-% ---------------------------------------------------------------------------
-
-% stampa_polinomio(+P, -Stringa)
-% Haskell: stampaPolinomio :: [Double] -> String
-stampa_polinomio(P, "0") :-
-    normalizza(P, []), !.
-stampa_polinomio(P, Str) :-
-    normalizza(P, NP),
-    length(NP, L),
-    MaxExp is L - 1,
-    pairs_exp(NP, 0, MaxExp, Pairs),   % [(Exp, Coeff), ...]
-    reverse(Pairs, RevPairs),          % ordine decrescente
-    format_poly(RevPairs, true, Str).
-
-% pairs_exp(+Coeffs, +CurExp, +MaxExp, -Pairs)
-pairs_exp([], _, _, []).
-pairs_exp([C|Cs], E, MaxExp, [(E,C)|Rest]) :-
-    E1 is E + 1,
-    pairs_exp(Cs, E1, MaxExp, Rest).
-
-% format_poly(+[(Exp,Coeff)], +IsFirst, -Str)
-format_poly([], _, "").
-format_poly([(E,C)|Rest], IsFirst, Str) :-
-    abs(C) =:= 1, E > 0, !,           % coefficiente ±1 con variabile
-    ( IsFirst = true
-    -> ( C < 0 -> Sign = "-" ; Sign = "" )
-    ;  ( C > 0 -> Sign = " + " ; Sign = " - " )
-    ),
-    format_variable(E, Var),
-    format_poly(Rest, false, RestStr),
-    atom_concat(Sign, Var, Piece),
-    atom_concat(Piece, RestStr, Str).
-format_poly([(E,C)|Rest], IsFirst, Str) :-
-    ( IsFirst = true
-    -> ( C < 0 -> Sign = "-" ; Sign = "" )
-    ;  ( C > 0 -> Sign = " + " ; Sign = " - " )
-    ),
+-- Caso base 1: Polinomio nullo stampato come "0".
+formatta_p([], 1) :- !, write('0').
+-- Caso base 2: Termine della stampa.
+formatta_p([], 0) :- !.
+-- Salta la stampa se il coefficiente corrente è nullo.
+formatta_p([(G, C)|XS], Primo) :-
+    limite(L), abs(C) < L, !,
+    formatta_p(XS, Primo).
+-- Stampa il monomio corrente calcolandone segno e stringa algebrica.
+formatta_p([(G, C)|XS], Primo) :-
+    stampa_segno(C, Primo),
     AbsC is abs(C),
-    converti(AbsC, CoeffStr),
-    format_variable(E, Var),
-    format_poly(Rest, false, RestStr),
-    atom_concat(Sign, CoeffStr, T1),
-    atom_concat(T1, Var, T2),
-    atom_concat(T2, RestStr, Str).
+    mostra_monomio(G, AbsC),
+    formatta_p(XS, 0).
 
-% format_variable(+Exp, -Str)
-format_variable(0, "")  :- !.
-format_variable(1, "x") :- !.
-format_variable(E, S)   :-
-    format(atom(S), "x^~w", [E]).
+-- Costruisce le coppie (Grado, Coefficiente) e le inverte (stampa dal grado massimo).
+reverse_zip_gradi(P, RevZipped) :-
+    costruisci_coppie(P, 0, Zipped),
+    reverse(Zipped, RevZipped).
 
+costruisci_coppie([], _, []).
+costruisci_coppie([C|CS], G, [(G, C)|Resto]) :- G1 is G + 1, costruisci_coppie(CS, G1, Resto).
 
-% ---------------------------------------------------------------------------
-% Aritmetica Polinomiale
-% ---------------------------------------------------------------------------
+-- Clausole separate per la gestione puramente dichiarativa dei segni.
+stampa_segno(C, 1) :- C < 0, !, write('-').
+stampa_segno(_, 1) :- !.
+stampa_segno(C, 0) :- C < 0, !, write(' - ').
+stampa_segno(_, 0) :- write(' + ').
 
-% zip_with_all(+F, +Xs, +Ys, -Zs)
-% Haskell: zipWithAll :: (Double->Double->Double) -> [Double] -> [Double] -> [Double]
-zip_with_all(_, [], [], []).
-zip_with_all(F, [X|Xs], [], [Z|Zs]) :-
-    call(F, X, 0.0, Z),
-    zip_with_all(F, Xs, [], Zs).
-zip_with_all(F, [], [Y|Ys], [Z|Zs]) :-
-    call(F, 0.0, Y, Z),
-    zip_with_all(F, [], Ys, Zs).
-zip_with_all(F, [X|Xs], [Y|Ys], [Z|Zs]) :-
-    call(F, X, Y, Z),
-    zip_with_all(F, Xs, Ys, Zs).
+-- Formattazione dei singoli monomi (omissione di x^0, x^1 e dei coefficienti unitari).
+mostra_monomio(0, C) :- !, scrivi_valore(C).
+mostra_monomio(1, C) :- limite(L), abs(C - 1.0) < L, !, write('x').
+mostra_monomio(1, C) :- !, scrivi_valore(C), write('x').
+mostra_monomio(G, C) :- limite(L), abs(C - 1.0) < L, !, write('x^'), write(G).
+mostra_monomio(G, C) :- scrivi_valore(C), write('x^'), write(G).
 
-% helper aritmetici per call/3
-add(X, Y, Z) :- Z is X + Y.
-sub(X, Y, Z) :- Z is X - Y.
+% -------------------------------------------------------------------------
+% Operazioni Aritmetiche Elementari
+% -------------------------------------------------------------------------
+addizione([], Y, R) :- !, normalizza(Y, R).
+addizione(X, [], R) :- !, normalizza(X, R).
+addizione([X|XS], [Y|YS], [Z|ZS]) :- Z is X + Y, addizione(XS, YS, ZS).
 
-% addizione(+A, +B, -C)
-% Haskell: addizione :: [Double] -> [Double] -> [Double]
-addizione(A, B, C) :-
-    zip_with_all(add, A, B, Raw),
-    normalizza(Raw, C).
+sottrazione([], Y, R) :- !, mappa_negate(Y, R).
+sottrazione(X, [], R) :- !, normalizza(X, R).
+sottrazione([X|XS], [Y|YS], [Z|ZS]) :- Z is X - Y, sottrazione(XS, YS, ZS).
 
-% sottrazione(+A, +B, -C)
-% Haskell: sottrazione :: [Double] -> [Double] -> [Double]
-sottrazione(A, B, C) :-
-    zip_with_all(sub, A, B, Raw),
-    normalizza(Raw, C).
+mappa_negate([], []).
+mappa_negate([X|XS], [Y|YS]) :- Y is -X, mappa_negate(XS, YS).
 
-% scala(+Scalar, +Poly, -Result)
-% Moltiplica ogni coefficiente per uno scalare
-scala(_, [], []).
-scala(A, [B|Bs], [C|Cs]) :-
-    C is A * B,
-    scala(A, Bs, Cs).
+moltiplicazione([], _, []) :- !.
+moltiplicazione(_, [], []) :- !.
+moltiplicazione([X|XS], YS, Prod) :-
+    mul_scalare(YS, X, Mux),
+    moltiplicazione(XS, YS, Resto),
+    addizione(Mux, [0.0|Resto], Prod).
 
-% shift(+N, +Poly, -Shifted)
-% Aggiunge N zeri in testa (moltiplica per x^N)
-shift(0, P, P) :- !.
-shift(N, P, [0.0|Shifted]) :-
-    N > 0,
-    N1 is N - 1,
-    shift(N1, P, Shifted).
+mul_scalare([], _, []).
+mul_scalare([Y|YS], X, [Z|ZS]) :- Z is Y * X, mul_scalare(YS, X, ZS).
 
-% moltiplicazione(+A, +B, -C)
-% Haskell: moltiplicazione :: [Double] -> [Double] -> [Double]
-moltiplicazione([], _, []).
-moltiplicazione([A|As], Bs, C) :-
-    scala(A, Bs, Term),
-    moltiplicazione(As, Bs, RestPoly),
-    shift(1, RestPoly, ShiftedRest),
-    addizione(Term, ShiftedRest, C).
+% -------------------------------------------------------------------------
+% Divisione Euclidea (STRUTTURA CORRETTA A 5 ARGOMENTI)
+% -------------------------------------------------------------------------
 
-% divisione_con_resto(+N, +D, -Q, -R)
-% Haskell: divisioneConResto :: [Double] -> [Double] -> ([Double], [Double])
-divisione_con_resto(_, D, _, _) :-
-    normalizza(D, []),
-    throw(error(divisione_per_zero)).
-divisione_con_resto(N, D, Q, R) :-
-    normalizza(N, NN),
-    normalizza(D, ND),
-    calcolo_grado(NN, GN),
-    calcolo_grado(ND, GD),
-    ( GN < GD
-    -> Q = [], R = NN
-    ;  divisione_step(NN, ND, GN, GD, Q, R)
-    ).
+-- Interfaccia di scomposizione: attiva dividi_ric passando Quoziente e Resto.
+divisione_con_resto(Dividendo, Divisore, Quoziente, Resto) :-
+    normalizza(Dividendo, Div), normalizza(Divisore, Divis),
+    dividi_ric(Div, Divis, [], Quoziente, Resto).
 
-divisione_step(NN, ND, GN, GD, Q, R) :-
-    Diff is GN - GD,
-    nth0(GN, NN, LeadN),
-    nth0(GD, ND, LeadD),
-    QCoeff is LeadN / LeadD,
-    % costruisce il monomio quoziente parziale
-    length(Zeros, Diff),
-    maplist(=(0.0), Zeros),
-    append(Zeros, [QCoeff], QMonomio),
-    moltiplicazione(QMonomio, ND, Prod),
-    sottrazione(NN, Prod, RestoParziale),
-    divisione_con_resto(RestoParziale, ND, QRest, RFinal),
-    addizione(QMonomio, QRest, Q),
-    R = RFinal.
+-- Caso base: Grado del dividendo residuo < grado del divisore. 
+-- Unifica qui il quoziente accumulato e il rimanente dividendo (che è il vero Resto).
+dividi_ric(Divid, Divis, Q_Acc, Quoziente, Resto) :-
+    length(Divid, LD), length(Divis, LDivis),
+    LD < LDivis, !,
+    normalizza(Q_Acc, Quoziente),
+    normalizza(Divid, Resto).
 
-% calcolo_mcd(+A, +B, -MCD)
-% Haskell: calcoloMCD :: [Double] -> [Double] -> [Double]
-calcolo_mcd(A, B, MCD) :-
-    normalizza(A, NA),
-    normalizza(B, NB),
-    ( NB = []
-    -> monico(NA, MCD)
-    ;  divisione_con_resto(NA, NB, _, Resto),
-       calcolo_mcd(NB, Resto, MCD)
-    ).
+-- Passo ricorsivo: esegue la scomposizione algebrica standard.
+dividi_ric(Divid, Divis, Q_Acc, Quoziente, Resto) :-
+    last(Divid, CoeffDivid), last(Divis, CoeffDivis),
+    length(Divid, LD), length(Divis, LDivis),
+    CoeffQ is CoeffDivid / CoeffDivis,
+    DiffGrado is LD - LDivis,
+    costruisci_monomio(DiffGrado, CoeffQ, Monomio),
+    moltiplicazione(Divis, Monomio, Sottraendo),
+    sottrazione(Divid, Sottraendo, NuovoDivid),
+    addizione(Q_Acc, Monomio, NuovoQAcc),
+    normalizza(NuovoDivid, NuovoDividP),
+    dividi_ric(NuovoDividP, Divis, NuovoQAcc, Quoziente, Resto).
 
-% monico(+P, -M): normalizza a polinomio monico (coeff. direttore = 1)
-monico([], []).
-monico(P, M) :-
-    P \= [],
-    last(P, Lead),
-    maplist(divide_by(Lead), P, M).
+-- Costruisce un monomio singolo posizionando zeri nelle posizioni di grado inferiore.
+costruisci_monomio(0, Coeff, [Coeff]) :- !.
+costruisci_monomio(N, Coeff, [0.0|Resto]) :- N > 0, N1 is N - 1, costruisci_monomio(N1, Coeff, Resto).
 
-divide_by(D, X, Y) :- Y is X / D.
+% -------------------------------------------------------------------------
+% MCD (Algoritmo di Euclide, reso monico)
+% -------------------------------------------------------------------------
+calcolo_mcd(A, B, M) :-
+    normalizza(A, NA), normalizza(B, NB),
+    mcd_euclide(NA, NB, M).
 
+-- Quando il secondo polinomio diventa [], il primo viene normalizzato a monico ed è il MCD.
+mcd_euclide(A, [], M) :- !, monico(A, M).
+mcd_euclide(A, B, M) :-
+    divisione_con_resto(A, B, _, Resto), % Estrae il vero resto tramite la divisione corretta.
+    mcd_euclide(B, Resto, M).
 
-% ---------------------------------------------------------------------------
-% Main e I/O
-% ---------------------------------------------------------------------------
+-- Rende monico dividendo la lista per il coefficiente di grado massimo.
+monico([], []) :- !.
+monico(Xs, Ms) :- last(Xs, Lead), Inv is 1.0 / Lead, mul_scalare(Xs, Inv, Ms).
 
-% leggi(+Nome, -Coeffs)
-% Haskell: leggi :: String -> IO [Double]
-leggi(Nome, Coeffs) :-
-    format("Inserisci coeff ~w (ordine crescente): ", [Nome]),
-    read_line_to_string(user_input, Line),
-    ( parse_doubles(Line, Raw)
-    -> normalizza(Raw, Coeffs)
-    ;  writeln("Errore input!"), leggi(Nome, Coeffs)
-    ).
+% -------------------------------------------------------------------------
+% Lettura Input (Senza parentesi o costrutti imperativi)
+% -------------------------------------------------------------------------
+leggi(Nome, P) :-
+    write('Inserisci i coefficienti del polinomio '), write(Nome),
+    write(' separati da spazi (ordine crescente): '), nl,
+    read_line_to_string(user_input, Stringa),
+    split_string(Stringa, " ", " ", ListaStringhe),
+    mappa_float(ListaStringhe, Coeffs),
+    normalizza(Coeffs, P).
 
-% parse_doubles(+Stringa, -Lista)
-parse_doubles(Line, Doubles) :-
-    split_string(Line, " \t", " \t", Tokens),
-    include([T]>>(T \= ""), Tokens, NonEmpty),
-    maplist([T, D]>>(number_string(D, T)), NonEmpty, Doubles).
-
-% main/0
-main :-
-    leggi("A", PA),
-    leggi("B", PB),
-    stampa_polinomio(PA, SA), format("~nA: ~w~n", [SA]),
-    stampa_polinomio(PB, SB), format("B: ~w~n", [SB]),
-    addizione(PA, PB, Somma),
-    stampa_polinomio(Somma, SSomma), format("Somma: ~w~n", [SSomma]),
-    moltiplicazione(PA, PB, Prodotto),
-    stampa_polinomio(Prodotto, SProdotto), format("Prodotto: ~w~n", [SProdotto]),
-    divisione_con_resto(PA, PB, Q, Resto),
-    stampa_polinomio(Q, SQ), format("Quoziente: ~w~n", [SQ]),
-    stampa_polinomio(Resto, SR), format("Resto: ~w~n", [SR]),
-    calcolo_mcd(PA, PB, MCD),
-    stampa_polinomio(MCD, SMCD), format("MCD: ~w~n", [SMCD]).
+mappa_float([], []).
+mappa_float([S|SS], [F|FF]) :- S \= "", !, number_string(F, S), mappa_float(SS, FF).
+mappa_float([_|SS], FF) :- mappa_float(SS, FF).
