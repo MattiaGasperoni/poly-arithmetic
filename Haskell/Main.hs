@@ -219,7 +219,12 @@ main = do
     putStrLn $ "Somma:      " ++ mostraPolinomio (sommaPolinomi poliA poliB)
     putStrLn $ "Differenza: " ++ mostraPolinomio (sottraiPolinomi poliA poliB)
     putStrLn $ "Prodotto:   " ++ mostraPolinomio (moltiplPolinomi poliA poliB)
-    let (quoziente, resto) = divisioneConResto poliA poliB
-    putStrLn $ "Quoziente:  " ++ mostraPolinomio quoziente
-    putStrLn $ "Resto:      " ++ mostraPolinomio resto
+    if null poliB
+        then do
+            putStrLn "Quoziente:  Impossibile calcolare (divisione per zero)"
+            putStrLn "Resto:      Impossibile calcolare (divisione per zero)"
+        else do
+            let (quoziente, resto) = divisioneConResto poliA poliB
+            putStrLn $ "Quoziente:  " ++ mostraPolinomio quoziente
+            putStrLn $ "Resto:      " ++ mostraPolinomio resto
     putStrLn $ "MCD:        " ++ mostraPolinomio (calcolaMCD poliA poliB)
