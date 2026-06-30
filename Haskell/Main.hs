@@ -1,230 +1,144 @@
--- Programma Haskell per operazioni ed algoritmi avanzati su polinomi.
+{- Programma Haskell per operazioni ed algoritmi avanzati su polinomi. -}
 module Main where
-
-import System.IO (hSetBuffering, stdout, BufferMode (..))
-import Text.Read (readMaybe)
-import Data.List (dropWhileEnd)
-
-tolleranzaNumerica :: Double
-tolleranzaNumerica = 1e-6
-
-{- La funzione rimuoviZeriInTesta normalizza un polinomio eliminando i coefficienti nulli
-   a partire dal grado massimo verso il basso:
-   - il suo unico argomento è la lista dei coefficienti del polinomio in ordine crescente di grado. -}
-rimuoviZeriInTesta :: [Double] -> [Double]
-rimuoviZeriInTesta = dropWhileEnd (\coefficiente -> abs coefficiente < tolleranzaNumerica)
-
-{- La funzione gradoPolinomio calcola il grado di un polinomio:
-   - il suo unico argomento è la lista dei coefficienti del polinomio in ordine crescente di grado. -}
-gradoPolinomio :: [Double] -> Int
-gradoPolinomio polinomio = max 0 (length (rimuoviZeriInTesta polinomio) - 1)
-
-{- La funzione formattaCoefficiente restituisce la rappresentazione testuale di un coefficiente:
-   - il suo unico argomento è il valore del coefficiente da formattare.
-
-   Caso base con parte decimale trascurabile: il valore viene arrotondato e restituito come intero.
-   Caso generale: il valore viene arrotondato a quattro cifre decimali. -}
-formattaCoefficiente :: Double -> String
-formattaCoefficiente x
-  | abs (x - fromIntegral (round x :: Int)) < tolleranzaNumerica = show (round x :: Int)
-  | otherwise = show (fromIntegral (round (x * 10000)) / 10000)
-
-{- La funzione mostraPolinomio restituisce la rappresentazione algebrica canonica di un polinomio,
-   stampando i termini dal grado massimo al grado minimo.
-   L'uso di reverse consente di elaborare i termini in ordine decrescente di grado:
-   - il suo unico argomento è la lista dei coefficienti del polinomio in ordine crescente di grado. -}
-mostraPolinomio :: [Double] -> String
-mostraPolinomio polinomio = formattaTermini (reverse (zip [0..] (rimuoviZeriInTesta polinomio))) True
-
-{- La funzione formattaTermini elabora ricorsivamente le coppie (grado, coefficiente) di un polinomio
-   restituendone la rappresentazione testuale:
-   - il primo argomento è la lista delle coppie (grado, coefficiente) in ordine decrescente di grado;
-   - il secondo argomento indica se il termine da elaborare è il primo della rappresentazione.
-
-   Caso base con lista vuota e primo termine: viene restituita la stringa "0".
-   Caso base con lista vuota: viene restituita la stringa vuota.
-   Casi generali: i termini con coefficiente nullo vengono saltati; gli altri vengono
-   formattati con il segno appropriato tramite formattaSegno e il monomio tramite formattaMonomio,
-   procedendo ricorsivamente sul resto della lista. -}
-formattaTermini :: [(Int, Double)] -> Bool -> String
-formattaTermini [] True  = "0"
-formattaTermini [] False = ""
-formattaTermini ((grado, coefficiente) : resto) ePrimoTermine
-  | abs coefficiente < tolleranzaNumerica = formattaTermini resto ePrimoTermine
-  | otherwise = formattaSegno coefficiente ePrimoTermine
-             ++ formattaMonomio grado (abs coefficiente)
-             ++ formattaTermini resto False
-
-{- La funzione formattaSegno restituisce la stringa del segno da anteporre a un termine:
-   - il primo argomento è il valore del coefficiente del termine;
-   - il secondo argomento indica se il termine è il primo della rappresentazione.
-
-   Caso con primo termine negativo: viene restituito "-".
-   Caso con primo termine positivo: viene restituita la stringa vuota.
-   Caso con termine successivo negativo: viene restituita " - ".
-   Caso con termine successivo positivo: viene restituita " + ". -}
-formattaSegno :: Double -> Bool -> String
-formattaSegno coefficiente True  | coefficiente < 0 = "-"
-                                 | otherwise        = ""
-formattaSegno coefficiente False | coefficiente < 0 = " - "
-                                 | otherwise        = " + "
-
-{- La funzione formattaMonomio restituisce la rappresentazione testuale di un monomio,
-   omettendo i coefficienti unitari e le potenze di esponente zero o uno:
-   - il primo argomento è il grado del monomio;
-   - il secondo argomento è il valore assoluto del coefficiente del monomio.
-
-   Caso base con grado zero: viene restituito il solo valore del coefficiente.
-   Caso con grado uno e coefficiente unitario: viene restituita la stringa "x".
-   Caso con grado uno: viene restituita la stringa del coefficiente seguita da "x".
-   Caso con grado superiore e coefficiente unitario: viene restituita la stringa "x^grado".
-   Caso generale: viene restituita la stringa del coefficiente seguita da "x^grado". -}
-formattaMonomio :: Int -> Double -> String
-formattaMonomio 0 coefficiente = formattaCoefficiente coefficiente
-formattaMonomio 1 coefficiente
-  | abs (coefficiente - 1) < tolleranzaNumerica = "x"
-  | otherwise                                   = formattaCoefficiente coefficiente ++ "x"
-formattaMonomio grado coefficiente
-  | abs (coefficiente - 1) < tolleranzaNumerica = "x^" ++ show grado
-  | otherwise                                   = formattaCoefficiente coefficiente ++ "x^" ++ show grado
-
-{- La funzione sommaPolinomi calcola la somma di due polinomi:
-   - il primo argomento è il primo dei due polinomi;
-   - il secondo argomento è il secondo dei due polinomi.
-
-   Caso base con primo polinomio vuoto: viene restituito il secondo polinomio normalizzato.
-   Caso base con secondo polinomio vuoto: viene restituito il primo polinomio normalizzato.
-   Caso generale: le teste vengono sommate e si procede ricorsivamente sulle code. -}
-sommaPolinomi :: [Double] -> [Double] -> [Double]
-sommaPolinomi [] secondoPolinomio = rimuoviZeriInTesta secondoPolinomio
-sommaPolinomi primoPolinomio [] = rimuoviZeriInTesta primoPolinomio
-sommaPolinomi (c1 : resto1) (c2 : resto2) =
-    rimuoviZeriInTesta ((c1 + c2) : sommaPolinomi resto1 resto2)
-
-{- La funzione sottraiPolinomi calcola la differenza tra due polinomi:
-   - il primo argomento è il primo dei due polinomi;
-   - il secondo argomento è il secondo dei due polinomi.
-
-   Caso base con primo polinomio vuoto: i coefficienti del secondo vengono negati e restituiti.
-   Caso base con secondo polinomio vuoto: viene restituito il primo polinomio normalizzato.
-   Caso generale: le teste vengono sottratte e si procede ricorsivamente sulle code. -}
-sottraiPolinomi :: [Double] -> [Double] -> [Double]
-sottraiPolinomi [] secondoPolinomio = rimuoviZeriInTesta (map negate secondoPolinomio)
-sottraiPolinomi primoPolinomio [] = rimuoviZeriInTesta primoPolinomio
-sottraiPolinomi (c1 : resto1) (c2 : resto2) =
-    rimuoviZeriInTesta ((c1 - c2) : sottraiPolinomi resto1 resto2)
-
-{- La funzione moltiplPolinomi calcola il prodotto di due polinomi per distribuzione:
-   - il primo argomento è il primo dei due polinomi;
-   - il secondo argomento è il secondo dei due polinomi.
-
-   Caso base con primo polinomio vuoto: viene restituita la lista vuota.
-   Caso base con secondo polinomio vuoto: viene restituita la lista vuota.
-   Caso generale: si moltiplica la testa del primo polinomio per il secondo, poi si somma
-   il risultato al prodotto della coda del primo per il secondo, scalato di un grado
-   tramite la prepend di uno zero. -}
-moltiplPolinomi :: [Double] -> [Double] -> [Double]
-moltiplPolinomi [] _ = []
-moltiplPolinomi _ [] = []
-moltiplPolinomi (coeffTesta : coeffResto) secondoPolinomio =
-    rimuoviZeriInTesta
-        (sommaPolinomi
-            (map (* coeffTesta) secondoPolinomio)
-            (0 : moltiplPolinomi coeffResto secondoPolinomio))
-
-{- La funzione divisioneConResto calcola il quoziente e il resto della divisione euclidea tra due polinomi:
-   - il primo argomento è il polinomio dividendo;
-   - il secondo argomento è il polinomio divisore. -}
-divisioneConResto :: [Double] -> [Double] -> ([Double], [Double])
-divisioneConResto dividendo divisore =
-    passoDiv (rimuoviZeriInTesta dividendo) (rimuoviZeriInTesta divisore) []
-
-{- La funzione passoDiv esegue ricorsivamente la divisione lunga tra polinomi, accumulando il quoziente:
-   - il primo argomento è il polinomio dividendo corrente;
-   - il secondo argomento è il polinomio divisore;
-   - il terzo argomento è il quoziente parziale accumulato fino al passo corrente.
-
-   Caso base: il grado del dividendo corrente è inferiore a quello del divisore; il quoziente
-   parziale e il dividendo corrente vengono restituiti rispettivamente come quoziente e resto.
-   Caso generale: si calcola il termine del quoziente dividendo i coefficienti direttori,
-   si sottrae dal dividendo corrente il prodotto del divisore per tale termine e si procede
-   ricorsivamente con il dividendo ridotto e il quoziente aggiornato. -}
-passoDiv :: [Double] -> [Double] -> [Double] -> ([Double], [Double])
-passoDiv dividendoCorrente divisore quozienteParziale
-  | length dividendoCorrente < length divisore =
-        (rimuoviZeriInTesta quozienteParziale, rimuoviZeriInTesta dividendoCorrente)
-  | otherwise = passoDiv dividendoRidotto divisore quozienteAggiornato
-  where
-    coeffDirettoreDividendo = last dividendoCorrente
-    coeffDirettoreDivisore  = last divisore
-    differenzaDiGrado       = length dividendoCorrente - length divisore
-    coefficienteDelPasso    = coeffDirettoreDividendo / coeffDirettoreDivisore
-    termineCorrente         = replicate differenzaDiGrado 0 ++ [coefficienteDelPasso]
-    termineDaSottrarre      = moltiplPolinomi divisore termineCorrente
-    dividendoRidotto        = sottraiPolinomi dividendoCorrente termineDaSottrarre
-    quozienteAggiornato     = sommaPolinomi quozienteParziale termineCorrente
-
-{- La funzione calcolaMCD calcola il massimo comun divisore di due polinomi:
-   - il primo argomento è il primo dei due polinomi;
-   - il secondo argomento è il secondo dei due polinomi. -}
-calcolaMCD :: [Double] -> [Double] -> [Double]
-calcolaMCD poliA poliB = algoritmoEuclide (rimuoviZeriInTesta poliA) (rimuoviZeriInTesta poliB)
-
-{- La funzione algoritmoEuclide calcola il massimo comun divisore di due polinomi
-   tramite l'algoritmo di Euclide, restituendo il risultato reso monico:
-   - il primo argomento è il primo dei due polinomi;
-   - il secondo argomento è il secondo dei due polinomi.
-
-   Caso base: il secondo polinomio è vuoto; il primo viene reso monico e restituito come MCD.
-   Caso generale: si sostituisce la coppia (A, B) con (B, resto della divisione di A per B)
-   e si procede ricorsivamente. -}
-algoritmoEuclide :: [Double] -> [Double] -> [Double]
-algoritmoEuclide poliA [] = rendiMonico poliA
-algoritmoEuclide poliA poliB = algoritmoEuclide poliB (snd (divisioneConResto poliA poliB))
-
-{- La funzione rendiMonico divide tutti i coefficienti di un polinomio per il suo coefficiente direttore:
-   - il suo unico argomento è la lista dei coefficienti del polinomio in ordine crescente di grado.
-
-   Caso base con polinomio vuoto: viene restituita la lista vuota.
-   Caso generale: ogni coefficiente viene diviso per il coefficiente direttore, ovvero l'ultimo
-   elemento della lista. -}
-rendiMonico :: [Double] -> [Double]
-rendiMonico [] = []
-rendiMonico coefficienti = map (/ last coefficienti) coefficienti
-
-{- L'azione parametrica di input/output leggiPolinomio acquisisce un polinomio leggendo i suoi
-   coefficienti da tastiera separati da spazi:
-   - il suo unico argomento è una stringa che specifica di quale polinomio si tratta.
-
-   Se il parsing di tutti i token ha successo, viene restituita la lista dei coefficienti normalizzata.
-   Se almeno un token non è convertibile in numero, viene segnalato l'errore e l'acquisizione
-   viene ripetuta. -}
-leggiPolinomio :: String -> IO [Double]
-leggiPolinomio etichetta = do
-    putStr $ "Inserisci i coefficienti del polinomio " ++ etichetta ++ " separati da spazi (ordine crescente): "
-    rigaInput <- getLine
-    verificaEConverti (words rigaInput)
-  where
-    verificaEConverti token = case mapM readMaybe token of
-        Just coefficienti -> return (rimuoviZeriInTesta coefficienti)
-        Nothing           -> putStrLn "Formato non valido! Riprova." >> leggiPolinomio etichetta
+ 
+import System.IO (hSetBuffering, stdout, BufferMode (..)) -- necessario per disabilitare il buffering dell'output
+import Text.Read (readMaybe)                              -- necessario per il parsing sicuro dei coefficienti inseriti da tastiera
+import Data.List (dropWhileEnd)                           -- necessario per rimuovere i coefficienti nulli di grado massimo
+ 
+{- La costante tolleranza rappresenta la soglia al di sotto della quale un valore Double
+   viene considerato pari a zero, al fine di compensare gli errori di arrotondamento
+   tipici dell'aritmetica in virgola mobile. -}
+tolleranza :: Double
+tolleranza = 1e-6
 
 main :: IO ()
 main = do
     hSetBuffering stdout NoBuffering
-    poliA <- leggiPolinomio "A"
-    poliB <- leggiPolinomio "B"
-    putStrLn $ "\nA:          " ++ mostraPolinomio poliA
-    putStrLn $ "B:          " ++ mostraPolinomio poliB
-    putStrLn $ "Somma:      " ++ mostraPolinomio (sommaPolinomi poliA poliB)
-    putStrLn $ "Differenza: " ++ mostraPolinomio (sottraiPolinomi poliA poliB)
-    putStrLn $ "Prodotto:   " ++ mostraPolinomio (moltiplPolinomi poliA poliB)
-    if null poliB
-        then do
-            putStrLn "Quoziente:  Impossibile calcolare (divisione per zero)"
-            putStrLn "Resto:      Impossibile calcolare (divisione per zero)"
-        else do
-            let (quoziente, resto) = divisioneConResto poliA poliB
-            putStrLn $ "Quoziente:  " ++ mostraPolinomio quoziente
-            putStrLn $ "Resto:      " ++ mostraPolinomio resto
-    putStrLn $ "MCD:        " ++ mostraPolinomio (calcolaMCD poliA poliB)
+    pa <- acquisisci_polinomio "A"
+    pb <- acquisisci_polinomio "B"
+    putStrLn $ "\nPolinomio A:  " ++ mostra pa
+    putStrLn $ "Polinomio B:  " ++ mostra pb
+    putStrLn $ "Somma:        " ++ mostra (somma pa pb)
+    putStrLn $ "Differenza:   " ++ mostra (differenza pa pb)
+    putStrLn $ "Prodotto:     " ++ mostra (prodotto pa pb)
+    case divisione pa pb of
+      Nothing -> putStrLn "Errore:       non è possibile dividere per il polinomio nullo."
+      Just (quoz, resto) -> do
+         putStrLn $ "Quoziente:    " ++ mostra quoz
+         putStrLn $ "Resto:        " ++ mostra resto
+    putStrLn $ "MCD:          " ++ mostra (mcd pa pb)
+
+{- L'azione parametrica di input/output acquisisci_polinomio acquisisce un polinomio di coefficienti:
+   - il suo unico argomento è una stringa che specifica di quale polinomio si tratta. -}
+acquisisci_polinomio :: String -> IO [Double]
+acquisisci_polinomio etichetta = do
+    putStr $ "Inserisci i coefficienti del polinomio " ++ etichetta ++ " separati da spazi (ordine crescente): "
+    riga <- getLine
+    let token = words riga
+    if null token
+      then putStrLn "Devi inserire almeno un coefficiente esplicito!" >> acquisisci_polinomio etichetta
+      else case mapM readMaybe token of
+        Just coeff -> return (normalizza coeff)
+        Nothing    -> putStrLn "Formato non valido! Riprova." >> acquisisci_polinomio etichetta
+
+{- La funzione normalizza elimina gli zeri di testa (grado massimo) di un polinomio:
+   - il suo unico argomento è la lista dei coefficienti in ordine crescente di grado. -}
+normalizza :: [Double] -> [Double]
+normalizza = dropWhileEnd (\c -> abs c < tolleranza)
+
+{- La funzione mostra restituisce la rappresentazione algebrica di un polinomio, dal grado massimo al minimo:
+   - il suo unico argomento è la lista dei coefficienti in ordine crescente di grado.
+   Le funzioni ausiliarie segno e monomio sono usate solo qui, da cui il where. -}
+mostra :: [Double] -> String
+mostra polinomio = termini (reverse (zip [0..] (normalizza polinomio))) True
+  where
+    termini :: [(Int, Double)] -> Bool -> String
+    termini [] True  = "0"
+    termini [] False = ""
+    termini ((grado, c) : resto) primo
+      | abs c < tolleranza = termini resto primo
+      | otherwise = segno c primo ++ monomio grado (abs c) ++ termini resto False
+
+    -- Segno restituisce il segno da anteporre al termine corrente.
+    segno :: Double -> Bool -> String
+    segno c True  | c < 0     = "-"
+                  | otherwise = ""
+    segno c False | c < 0     = " - "
+                  | otherwise = " + "
+
+    -- Monomio formatta grado e coefficiente, omettendo coefficienti unitari e potenze 0/1.
+    monomio :: Int -> Double -> String
+    monomio 0 c = formatta_coefficienti c
+    monomio 1 c | abs (c - 1) < tolleranza = "x"
+                | otherwise                = formatta_coefficienti c ++ "x"
+    monomio g c | abs (c - 1) < tolleranza = "x^" ++ show g
+                | otherwise                = formatta_coefficienti c ++ "x^" ++ show g
+
+{- La funzione formatta_coefficienti restituisce la rappresentazione testuale di un coefficiente,
+   come intero se la parte decimale è trascurabile, altrimenti arrotondato a 4 cifre:
+   - il suo unico argomento è il valore del coefficiente. -}
+formatta_coefficienti :: Double -> String
+formatta_coefficienti x
+  | abs (x - fromIntegral (round x :: Int)) < tolleranza = show (round x :: Int)
+  | otherwise = show (fromIntegral (round (x * 10000)) / 10000)
+
+{- La funzione somma calcola la somma di due polinomi:
+   - il primo argomento è il primo polinomio;
+   - il secondo argomento è il secondo polinomio. -}
+somma :: [Double] -> [Double] -> [Double]
+somma [] pb = normalizza pb
+somma pa [] = normalizza pa
+somma (a : resto1) (b : resto2) = normalizza ((a + b) : somma resto1 resto2)
+
+{- La funzione differenza calcola la differenza tra due polinomi:
+   - il primo argomento è il primo polinomio;
+   - il secondo argomento è il secondo polinomio. -}
+differenza :: [Double] -> [Double] -> [Double]
+differenza [] pb = normalizza (map negate pb)
+differenza pa [] = normalizza pa
+differenza (a : resto1) (b : resto2) = normalizza ((a - b) : differenza resto1 resto2)
+
+{- La funzione prodotto calcola il prodotto di due polinomi:
+   - il primo argomento è il primo polinomio;
+   - il secondo argomento è il secondo polinomio. -}
+prodotto :: [Double] -> [Double] -> [Double]
+prodotto [] _ = []
+prodotto _ [] = []
+prodotto (testa : resto) pb =
+    normalizza (somma (map (* testa) pb) (0 : prodotto resto pb))
+
+{- La funzione divisione calcola quoziente e resto della divisione euclidea tra due polinomi:
+   - il primo argomento è il dividendo;
+   - il secondo argomento è il divisore.
+   Restituisce Nothing se il divisore è il polinomio nullo. -}
+divisione :: [Double] -> [Double] -> Maybe ([Double], [Double])
+divisione dividendo divisore
+  | all (== 0) divisore = Nothing
+  | otherwise = Just (divisione_ricorsiva (normalizza dividendo) (normalizza divisore) [])
+  where
+    -- divisione_ricorsiva esegue la divisione lunga accumulando il quoziente.
+    divisione_ricorsiva :: [Double] -> [Double] -> [Double] -> ([Double], [Double])
+    divisione_ricorsiva resto_corrente divisore_normalizzato quoziente
+      | length resto_corrente < length divisore_normalizzato = (normalizza quoziente, normalizza resto_corrente)
+      | otherwise = divisione_ricorsiva resto_aggiornato divisore_normalizzato quoziente_aggiornato
+      where
+        coefficiente_termine = last resto_corrente / last divisore_normalizzato
+        termine_quoziente    = replicate (length resto_corrente - length divisore_normalizzato) 0 ++ [coefficiente_termine]
+        resto_aggiornato     = normalizza (differenza resto_corrente (prodotto divisore_normalizzato termine_quoziente))
+        quoziente_aggiornato = somma quoziente termine_quoziente
+
+{- La funzione mcd calcola il massimo comun divisore di due polinomi tramite l'algoritmo
+   di Euclide, restituendo il risultato reso monico:
+   - il primo argomento è il primo polinomio;
+   - il secondo argomento è il secondo polinomio. -}
+mcd :: [Double] -> [Double] -> [Double]
+mcd pa pb = euclide (normalizza pa) (normalizza pb)
+  where
+    euclide a [] = monico a
+    euclide a b = case divisione a b of
+        Nothing        -> monico a
+        Just (_, resto) -> euclide b resto
+
+    -- monico divide tutti i coefficienti per il coefficiente direttore (l'ultimo della lista)
+    monico [] = []
+    monico coeff = map (/ last coeff) coeff
