@@ -16,13 +16,15 @@ main = do
     hSetBuffering stdout NoBuffering
     pa <- acquisisci_polinomio "A"
     pb <- acquisisci_polinomio "B"
-    putStrLn $ "\nPolinomio A:  " ++ mostra pa
+    putStrLn $ "\nPolinomio A:  " ++ mostra pa 
     putStrLn $ "Polinomio B:  " ++ mostra pb
+    putStrLn $ "Grado A:      " ++ show (grado_polinomio pa)
+    putStrLn $ "Grado B:      " ++ show (grado_polinomio pb)
     putStrLn $ "Somma:        " ++ mostra (somma pa pb)
     putStrLn $ "Differenza:   " ++ mostra (differenza pa pb)
     putStrLn $ "Prodotto:     " ++ mostra (prodotto pa pb)
     case divisione pa pb of
-      Nothing -> putStrLn "Errore:       non è possibile dividere per il polinomio nullo."
+      Nothing -> putStrLn "Errore:       impossibile dividere per il polinomio nullo."
       Just (quoz, resto) -> do
          putStrLn $ "Quoziente:    " ++ mostra quoz
          putStrLn $ "Resto:        " ++ mostra resto
@@ -81,6 +83,10 @@ formatta_coefficienti :: Double -> String
 formatta_coefficienti x
   | abs (x - fromIntegral (round x :: Int)) < tolleranza = show (round x :: Int)
   | otherwise = show (fromIntegral (round (x * 10000)) / 10000)
+
+grado_polinomio :: [Double] -> Int
+grado_polinomio [] = 0
+grado_polinomio polinomio = length (normalizza polinomio) - 1
 
 {- La funzione somma calcola la somma di due polinomi:
    - il primo argomento è il primo polinomio;

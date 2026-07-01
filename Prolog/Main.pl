@@ -1,371 +1,236 @@
 /* Programma Prolog per operazioni ed algoritmi avanzati su polinomi. */
 
-main :- 
-    leggiPolinomio('A', PoliA),
-    leggiPolinomio('B', PoliB),
-    nl, write('Polinomio A: '), mostraPolinomio(PoliA), nl,
-    write('Polinomio B: '), mostraPolinomio(PoliB), nl,
-    sommaPolinomi(PoliA, PoliB, Somma), write('Somma: '), mostraPolinomio(Somma), nl,
-    sottraiPolinomi(PoliA, PoliB, Differenza), write('Differenza: '), mostraPolinomio(Differenza), nl,
-    moltiplPolinomi(PoliA, PoliB, Prodotto), write('Prodotto: '), mostraPolinomio(Prodotto), nl,
-    divisioneConResto(PoliA, PoliB, Quoziente, Resto),
-    write('Quoziente: '), mostraPolinomio(Quoziente), nl,
-    write('Resto: '), mostraPolinomio(Resto), nl,
-    calcolaMCD(PoliA, PoliB, MCD), write('MCD: '), mostraPolinomio(MCD), nl.
+/* La costante tolleranza rappresenta la soglia al di sotto della quale un valore Double
+   viene considerato pari a zero, al fine di compensare gli errori di arrotondamento
+   tipici dell'aritmetica in virgola mobile. */
+tolleranza_numerica(1e-6).
 
-tolleranzaNumerica(1e-6).
+main :-
+    acquisisci_polinomio('A', Poli_a),
+    acquisisci_polinomio('B', Poli_b),
+    nl, write('Polinomio A:  '), mostra(Poli_a), nl,
+    write('Polinomio B:  '), mostra(Poli_b), nl,
+    grado_polinomio(Poli_a, Grado_a), write('Grado A:      '), write(Grado_a), nl,
+    grado_polinomio(Poli_b, Grado_b), write('Grado B:      '), write(Grado_b), nl,
+    somma(Poli_a, Poli_b, Somma), write('Somma:        '), mostra(Somma), nl,
+    differenza(Poli_a, Poli_b, Differenza), write('Differenza:   '), mostra(Differenza), nl,
+    prodotto(Poli_a, Poli_b, Prodotto), write('Prodotto:     '), mostra(Prodotto), nl,
+    ( divisione(Poli_a, Poli_b, Quoziente, Resto) ->
+        write('Quoziente:    '), mostra(Quoziente), nl,
+        write('Resto:        '), mostra(Resto), nl
+    ; write('Errore:       impossibile dividere per il polinomio nullo.'), nl
+    ),
+    mcd(Poli_a, Poli_b, Mcd), write('MCD:          '), mostra(Mcd), nl.
 
-/* Il predicato rimuoviZeriInTesta normalizza un polinomio eliminando i coefficienti nulli
-   a partire dal grado massimo verso il basso:
-   - il suo unico argomento è la lista dei coefficienti del polinomio in ordine crescente di grado. */
-rimuoviZeriInTesta(Polinomio, PolinomioNorm) :-
-    reverse(Polinomio, Invertito),
-    rimuoviZeriDaListaInvertita(Invertito, InvertitoRipulito),
-    reverse(InvertitoRipulito, PolinomioNorm).
-
-/* Il predicato rimuoviZeriDaListaInvertita elimina ricorsivamente i valori vicini allo zero
-   dall'inizio della lista invertita dei coefficienti:
-   - il primo argomento è la lista da cui eliminare gli zeri;
-   - il secondo argomento è la lista risultante priva degli zeri iniziali.
-
-   Caso base: la testa della lista è prossima a zero; il taglio blocca il backtracking e
-   si procede ricorsivamente sul resto.
-   Caso generale: la testa non è prossima a zero; la lista viene restituita invariata per
-   unificazione con il secondo argomento. */
-rimuoviZeriDaListaInvertita([X|Resto], Risultato) :-
-    tolleranzaNumerica(T), abs(X) < T, !,
-    rimuoviZeriDaListaInvertita(Resto, Risultato).
-rimuoviZeriDaListaInvertita(Lista, Lista).
-
-/* Il predicato gradoPolinomio calcola il grado di un polinomio:
-   - il primo argomento è la lista dei coefficienti del polinomio in ordine crescente di grado;
-   - il secondo argomento è il grado del polinomio.
-
-   Caso base con lista vuota: il grado è zero.
-   Caso generale: si normalizza il polinomio, si calcola la lunghezza della lista risultante
-   e il grado viene unificato con tale lunghezza decrementata di uno. */
-gradoPolinomio([], 0) :- !.
-gradoPolinomio(Polinomio, Grado) :-
-    rimuoviZeriInTesta(Polinomio, PoliNorm),
-    length(PoliNorm, Lunghezza),
-    Lunghezza > 0, !,
-    Grado is Lunghezza - 1.
-gradoPolinomio(_, 0).
-
-/* Il predicato scriviValore stampa un valore numerico come intero se prossimo a un intero,
-   altrimenti arrotondato a quattro cifre decimali:
-   - il suo unico argomento è il valore numerico da stampare. */
-scriviValore(X) :-
-    tolleranzaNumerica(T),
-    Diff is abs(X - round(X)),
-    scriviValoreConPrecisione(Diff, T, X).
-
-scriviValoreConPrecisione(Diff, T, X) :- Diff < T, !, R is round(X), write(R).
-scriviValoreConPrecisione(_, _, X) :- Val is round(X * 10000) / 10000, write(Val).
-
-/* Il predicato mostraPolinomio stampa la rappresentazione algebrica canonica di un polinomio,
-   dal termine di grado massimo a quello di grado minimo:
-   - il suo unico argomento è la lista dei coefficienti del polinomio in ordine crescente di grado. */
-mostraPolinomio(Polinomio) :-
-    rimuoviZeriInTesta(Polinomio, PoliNorm),
-    costruisciCoppieGradoCoeff(PoliNorm, CoppieInvertite),
-    formattaTermini(CoppieInvertite, 1).
-
-/* Il predicato formattaTermini elabora ricorsivamente le coppie (grado, coefficiente) di un polinomio
-   stampandone la rappresentazione algebrica:
-   - il primo argomento è la lista delle coppie (grado, coefficiente) in ordine decrescente di grado;
-   - il secondo argomento indica se il termine da elaborare è il primo della rappresentazione.
-
-   Caso base con lista vuota e primo termine: viene stampata la stringa "0".
-   Caso base con lista vuota: la stampa termina.
-   Caso ricorsivo con coefficiente nullo: il termine viene saltato e si procede sul resto.
-   Caso ricorsivo generale: viene stampato il segno tramite formattaSegno e il monomio
-   tramite formattaMonomio, poi si procede ricorsivamente sul resto della lista. */
-formattaTermini([], 1) :- !, write('0').
-formattaTermini([], 0) :- !.
-formattaTermini([(_, Coefficiente)|Resto], EPrimoTermine) :-
-    tolleranzaNumerica(T), abs(Coefficiente) < T, !,
-    formattaTermini(Resto, EPrimoTermine).
-formattaTermini([(Grado, Coefficiente)|Resto], EPrimoTermine) :-
-    formattaSegno(Coefficiente, EPrimoTermine),
-    ValoreAssoluto is abs(Coefficiente),
-    formattaMonomio(Grado, ValoreAssoluto),
-    formattaTermini(Resto, 0).
-
-/* Il predicato costruisciCoppieGradoCoeff costruisce la lista delle coppie (grado, coefficiente)
-   associate ai termini di un polinomio, ordinata dal grado massimo al grado minimo:
-   - il primo argomento è la lista dei coefficienti del polinomio in ordine crescente di grado;
-   - il secondo argomento è la lista delle coppie (grado, coefficiente) in ordine decrescente di grado. */
-costruisciCoppieGradoCoeff(Polinomio, CoppieInvertite) :-
-    accumulaCoppie(Polinomio, 0, Coppie),
-    reverse(Coppie, CoppieInvertite).
-
-/* Il predicato accumulaCoppie costruisce ricorsivamente la lista delle coppie (grado, coefficiente):
-   - il primo argomento è la lista dei coefficienti del polinomio in ordine crescente di grado;
-   - il secondo argomento è il grado corrente;
-   - il terzo argomento è la lista delle coppie (grado, coefficiente) risultante.
-
-   Caso base con lista vuota: viene restituita la lista vuota.
-   Caso generale: si costruisce la coppia con il grado corrente e la testa della lista,
-   si incrementa il grado e si procede ricorsivamente sulla coda. */
-accumulaCoppie([], _, []).
-accumulaCoppie([Coeff|Resto], Grado, [(Grado, Coeff)|CoppieResto]) :-
-    GradoSucc is Grado + 1,
-    accumulaCoppie(Resto, GradoSucc, CoppieResto).
-
-/* Il predicato formattaSegno stampa il segno da anteporre a un termine del polinomio:
-   - il primo argomento è il valore del coefficiente del termine;
-   - il secondo argomento indica se il termine è il primo della rappresentazione.
-
-   Caso con primo termine negativo: viene stampato "-".
-   Caso con primo termine positivo: non viene stampato nulla.
-   Caso con termine successivo negativo: viene stampato " - ".
-   Caso con termine successivo positivo: viene stampato " + ". */
-formattaSegno(Coefficiente, 1) :- Coefficiente < 0, !, write('-').
-formattaSegno(_, 1) :- !.
-formattaSegno(Coefficiente, 0) :- Coefficiente < 0, !, write(' - ').
-formattaSegno(_, 0) :- write(' + ').
-
-/* Il predicato formattaMonomio stampa la rappresentazione testuale di un monomio,
-   omettendo i coefficienti unitari e le potenze di esponente zero o uno:
-   - il primo argomento è il grado del monomio;
-   - il secondo argomento è il valore assoluto del coefficiente del monomio.
-
-   Caso base con grado zero: viene stampato il solo valore del coefficiente.
-   Caso con grado uno e coefficiente unitario: viene stampato "x".
-   Caso con grado uno: viene stampato il coefficiente seguito da "x".
-   Caso con grado superiore e coefficiente unitario: viene stampato "x^grado".
-   Caso generale: viene stampato il coefficiente seguito da "x^grado". */
-formattaMonomio(0, Coefficiente) :- !, scriviValore(Coefficiente).
-formattaMonomio(1, Coefficiente) :-
-    tolleranzaNumerica(T), abs(Coefficiente - 1.0) < T, !, write('x').
-formattaMonomio(1, Coefficiente) :- !, scriviValore(Coefficiente), write('x').
-formattaMonomio(Grado, Coefficiente) :-
-    tolleranzaNumerica(T), abs(Coefficiente - 1.0) < T, !, write('x^'), write(Grado).
-formattaMonomio(Grado, Coefficiente) :-
-    scriviValore(Coefficiente), write('x^'), write(Grado).
-
-/* Il predicato sommaPolinomi calcola la somma di due polinomi:
-   - il primo argomento è il primo dei due polinomi;
-   - il secondo argomento è il secondo dei due polinomi;
-   - il terzo argomento è il polinomio somma.
-
-   Caso base con primo polinomio vuoto: il secondo polinomio normalizzato viene unificato col risultato.
-   Caso base con secondo polinomio vuoto: il primo polinomio normalizzato viene unificato col risultato.
-   Caso generale: le teste vengono sommate e si procede ricorsivamente sulle code. */
-sommaPolinomi([], SecondoPoli, Risultato) :- !, rimuoviZeriInTesta(SecondoPoli, Risultato).
-sommaPolinomi(PrimoPoli, [], Risultato) :- !, rimuoviZeriInTesta(PrimoPoli, Risultato).
-sommaPolinomi([C1|Resto1], [C2|Resto2], [Somma|SommeResto]) :-
-    Somma is C1 + C2,
-    sommaPolinomi(Resto1, Resto2, SommeResto).
-
-/* Il predicato sottraiPolinomi calcola la differenza tra due polinomi:
-   - il primo argomento è il primo dei due polinomi;
-   - il secondo argomento è il secondo dei due polinomi;
-   - il terzo argomento è il polinomio differenza.
-
-   Caso base con primo polinomio vuoto: i coefficienti del secondo vengono negati tramite
-   negaCoefficienti e unificati col risultato.
-   Caso base con secondo polinomio vuoto: il primo polinomio normalizzato viene unificato col risultato.
-   Caso generale: le teste vengono sottratte e si procede ricorsivamente sulle code. */
-sottraiPolinomi([], SecondoPoli, Risultato) :- !, negaCoefficienti(SecondoPoli, Risultato).
-sottraiPolinomi(PrimoPoli, [], Risultato) :- !, rimuoviZeriInTesta(PrimoPoli, Risultato).
-sottraiPolinomi([C1|Resto1], [C2|Resto2], [Diff|DiffResto]) :-
-    Diff is C1 - C2,
-    sottraiPolinomi(Resto1, Resto2, DiffResto).
-
-/* Il predicato negaCoefficienti calcola l'opposto di ogni coefficiente di un polinomio:
-   - il primo argomento è la lista dei coefficienti del polinomio;
-   - il secondo argomento è la lista dei coefficienti opposti.
-
-   Caso base con lista vuota: viene restituita la lista vuota.
-   Caso generale: la testa viene negata e si procede ricorsivamente sulla coda. */
-negaCoefficienti([], []).
-negaCoefficienti([X|Resto], [NegX|RestoNeg]) :- NegX is -X, negaCoefficienti(Resto, RestoNeg).
-
-/* Il predicato moltiplPolinomi calcola il prodotto di due polinomi per distribuzione:
-   - il primo argomento è il primo dei due polinomi;
-   - il secondo argomento è il secondo dei due polinomi;
-   - il terzo argomento è il polinomio prodotto.
-
-   Caso base con primo polinomio vuoto: il risultato è la lista vuota.
-   Caso base con secondo polinomio vuoto: il risultato è la lista vuota.
-   Caso generale: si moltiplica la testa del primo polinomio per il secondo tramite
-   moltiplicaPerScalare, poi si somma il risultato al prodotto della coda del primo
-   per il secondo, scalato di un grado tramite la prepend di uno zero. */
-moltiplPolinomi([], _, []) :- !.
-moltiplPolinomi(_, [], []) :- !.
-moltiplPolinomi([CoeffTesta|CoeffResto], SecondoPoli, Prodotto) :-
-    moltiplicaPerScalare(SecondoPoli, CoeffTesta, ProdottoTesta),
-    moltiplPolinomi(CoeffResto, SecondoPoli, ProdottoResto),
-    sommaPolinomi(ProdottoTesta, [0.0|ProdottoResto], Prodotto).
-
-/* Il predicato moltiplicaPerScalare moltiplica ogni coefficiente di un polinomio per uno scalare:
-   - il primo argomento è la lista dei coefficienti del polinomio;
-   - il secondo argomento è il valore dello scalare;
-   - il terzo argomento è la lista dei coefficienti risultanti.
-
-   Caso base con lista vuota: viene restituita la lista vuota.
-   Caso generale: la testa viene moltiplicata per lo scalare e si procede ricorsivamente sulla coda. */
-moltiplicaPerScalare([], _, []).
-moltiplicaPerScalare([Y|YResto], Scalare, [Prod|ProdResto]) :-
-    Prod is Y * Scalare,
-    moltiplicaPerScalare(YResto, Scalare, ProdResto).
-
-/* Il predicato divisioneConResto calcola il quoziente e il resto della divisione euclidea tra due polinomi:
-   - il primo argomento è il polinomio dividendo;
-   - il secondo argomento è il polinomio divisore;
-   - il terzo argomento è il polinomio quoziente;
-   - il quarto argomento è il polinomio resto. */
-divisioneConResto(Dividendo, Divisore, Quoziente, Resto) :-
-    rimuoviZeriInTesta(Dividendo, DividendoNorm),
-    rimuoviZeriInTesta(Divisore, DivisoreNorm),
-    passoDiv(DividendoNorm, DivisoreNorm, [], Quoziente, Resto).
-
-/* Il predicato passoDiv esegue ricorsivamente la divisione lunga tra polinomi, accumulando il quoziente:
-   - il primo argomento è il polinomio dividendo corrente;
-   - il secondo argomento è il polinomio divisore;
-   - il terzo argomento è il quoziente parziale accumulato fino al passo corrente;
-   - il quarto argomento è il polinomio quoziente;
-   - il quinto argomento è il polinomio resto.
-
-   Caso base: il grado del dividendo corrente è inferiore a quello del divisore; il taglio
-   blocca il backtracking e il quoziente parziale e il dividendo corrente vengono unificati
-   rispettivamente con il quoziente e il resto.
-   Caso generale: si calcola il termine del quoziente dividendo i coefficienti direttori,
-   si sottrae dal dividendo corrente il prodotto del divisore per tale termine e si procede
-   ricorsivamente con il dividendo ridotto e il quoziente aggiornato. */
-passoDiv(DividendoCorrente, Divisore, QuozienteParziale, Quoziente, Resto) :-
-    length(DividendoCorrente, LunghDividendo),
-    length(Divisore, LunghDivisore),
-    LunghDividendo < LunghDivisore, !,
-    rimuoviZeriInTesta(QuozienteParziale, Quoziente),
-    rimuoviZeriInTesta(DividendoCorrente, Resto).
-
-passoDiv(DividendoCorrente, Divisore, QuozienteParziale, Quoziente, Resto) :-
-    last(DividendoCorrente, CoeffDirettoreDividendo),
-    last(Divisore, CoeffDirettoreDivisore),
-    length(DividendoCorrente, LunghDividendo),
-    length(Divisore, LunghDivisore),
-    CoefficienteDelPasso is CoeffDirettoreDividendo / CoeffDirettoreDivisore,
-    DifferenzaDiGrado is LunghDividendo - LunghDivisore,
-    costruisciMonomio(DifferenzaDiGrado, CoefficienteDelPasso, TermineCorrente),
-    moltiplPolinomi(Divisore, TermineCorrente, TermineDaSottrarre),
-    sottraiPolinomi(DividendoCorrente, TermineDaSottrarre, DividendoRidotto),
-    sommaPolinomi(QuozienteParziale, TermineCorrente, QuozienteAggiornato),
-    rimuoviZeriInTesta(DividendoRidotto, DividendoRidottoNorm),
-    passoDiv(DividendoRidottoNorm, Divisore, QuozienteAggiornato, Quoziente, Resto).
-
-/* Il predicato costruisciMonomio costruisce un monomio come lista densa di coefficienti,
-   con zeri nelle posizioni di grado inferiore:
-   - il primo argomento è il grado del monomio;
-   - il secondo argomento è il coefficiente del monomio;
-   - il terzo argomento è la lista densa risultante.
-
-   Caso base con grado zero: viene restituita la lista contenente il solo coefficiente.
-   Caso generale: viene preposta una posizione nulla e si procede ricorsivamente
-   decrementando il grado. */
-costruisciMonomio(0, Coefficiente, [Coefficiente]) :- !.
-costruisciMonomio(N, Coefficiente, [0.0|Resto]) :-
-    N > 0, N1 is N - 1,
-    costruisciMonomio(N1, Coefficiente, Resto).
-
-/* Il predicato calcolaMCD calcola il massimo comun divisore di due polinomi:
-   - il primo argomento è il primo dei due polinomi;
-   - il secondo argomento è il secondo dei due polinomi;
-   - il terzo argomento è il massimo comun divisore. */
-calcolaMCD(PoliA, PoliB, MCD) :-
-    rimuoviZeriInTesta(PoliA, PoliANorm),
-    rimuoviZeriInTesta(PoliB, PoliBNorm),
-    algoritmoEuclide(PoliANorm, PoliBNorm, MCD).
-
-/* Il predicato algoritmoEuclide calcola il massimo comun divisore di due polinomi
-   tramite l'algoritmo di Euclide, restituendo il risultato reso monico:
-   - il primo argomento è il primo dei due polinomi;
-   - il secondo argomento è il secondo dei due polinomi;
-   - il terzo argomento è il massimo comun divisore.
-
-   Caso base: il secondo polinomio è vuoto; il taglio blocca il backtracking e il primo
-   polinomio viene reso monico e unificato col risultato.
-   Caso generale: si sostituisce la coppia (A, B) con (B, resto della divisione di A per B)
-   e si procede ricorsivamente. */
-algoritmoEuclide(PoliA, [], MCD) :- !, rendiMonico(PoliA, MCD).
-algoritmoEuclide(PoliA, PoliB, MCD) :-
-    divisioneConResto(PoliA, PoliB, _, Resto),
-    algoritmoEuclide(PoliB, Resto, MCD).
-
-/* Il predicato rendiMonico divide tutti i coefficienti di un polinomio per il suo coefficiente direttore:
-   - il primo argomento è la lista dei coefficienti del polinomio in ordine crescente di grado;
-   - il secondo argomento è la lista dei coefficienti del polinomio monico risultante.
-
-   Caso base con lista vuota: viene restituita la lista vuota.
-   Caso generale: ogni coefficiente viene diviso per l'ultimo elemento della lista,
-   ovvero il coefficiente direttore. */
-rendiMonico([], []) :- !.
-rendiMonico(Coefficienti, Monico) :-
-    last(Coefficienti, CoeffDirettore),
-    InversoCoefficiente is 1.0 / CoeffDirettore,
-    moltiplicaPerScalare(Coefficienti, InversoCoefficiente, Monico).
-
-/* Il predicato leggiPolinomio acquisisce un polinomio leggendo i suoi coefficienti da tastiera
+/* Il predicato acquisisci_polinomio acquisisce un polinomio leggendo i suoi coefficienti da tastiera,
    separati da spazi, in ordine crescente di grado:
    - il primo argomento è una stringa che specifica di quale polinomio si tratta;
    - il secondo argomento è la lista dei coefficienti del polinomio acquisito. */
-leggiPolinomio(Etichetta, Polinomio) :-
+acquisisci_polinomio(Etichetta, Polinomio) :-
     write('Inserisci i coefficienti del polinomio '), write(Etichetta),
     write(' separati da spazi (ordine crescente): '), nl,
-    read_line_to_string(user_input, RigaInput),
-    split_string(RigaInput, " ", " ", ListaStringhe),
-    elaboraInput(Etichetta, ListaStringhe, Polinomio).
+    read_line_to_string(user_input, Riga_input),
+    split_string(Riga_input, " ", " ", Lista_stringhe),
+    elabora_input(Etichetta, Lista_stringhe, Polinomio).
 
-/* Il predicato elaboraInput verifica la validità dell'input acquisito e lo converte
-   in una lista di coefficienti numerici, richiedendo un nuovo inserimento in caso di errore:
-   - il primo argomento è una stringa che specifica di quale polinomio si tratta;
-   - il secondo argomento è la lista di stringhe letta da tastiera;
-   - il terzo argomento è la lista dei coefficienti del polinomio risultante.
+% Elabora e converte l'input testuale in coefficienti numerici, ripetendo l'acquisizione in caso di formato non valido.
+elabora_input(_, Lista_stringhe, Polinomio) :-
+    converti_input(Lista_stringhe, Coefficienti), !,
+    rimuovi_zeri_in_testa(Coefficienti, Polinomio).
 
-   Caso base: tutte le stringhe sono valide; si procede alla conversione tramite
-   convertiStringheInFloat e alla normalizzazione del risultato.
-   Caso generale: almeno una stringa non è valida; viene segnalato l'errore e l'acquisizione
-   viene ripetuta tramite leggiPolinomio. */
-elaboraInput(_, ListaStringhe, Polinomio) :-
-    stringheValide(ListaStringhe), !,
-    convertiStringheInFloat(ListaStringhe, Coefficienti),
-    rimuoviZeriInTesta(Coefficienti, Polinomio).
-
-elaboraInput(Etichetta, _, Polinomio) :-
+elabora_input(Etichetta, _, Polinomio) :-
     write('*** ERRORE: L\'input contiene caratteri non numerici o non validi. Riprova. ***'), nl, nl,
-    leggiPolinomio(Etichetta, Polinomio).
+    acquisisci_polinomio(Etichetta, Polinomio).
 
-/* Il predicato stringheValide verifica che ogni elemento di una lista di stringhe
-   rappresenti un valore numerico valido:
-   - il suo unico argomento è la lista di stringhe da verificare.
+% Converti_input converte le stringhe non vuote in coefficienti numerici, scartando le stringhe vuote e fallendo se una stringa non è un numero valido.
+converti_input(Lista_stringhe, Coefficienti) :-
+    converti_input(Lista_stringhe, [], Coefficienti_invertiti),
+    reverse(Coefficienti_invertiti, Coefficienti).
 
-   Caso base con lista vuota: la verifica ha esito positivo.
-   Caso ricorsivo con stringa vuota: l'elemento viene saltato e si procede sul resto.
-   Caso ricorsivo generale: si tenta la conversione numerica tramite number_string;
-   se ha successo si procede ricorsivamente, altrimenti il predicato fallisce. */
-stringheValide([]).
-stringheValide([S|Resto]) :-
+converti_input([], Acc, Acc).
+converti_input([S|Resto], Acc, Coefficienti) :-
     S == "", !,
-    stringheValide(Resto).
-stringheValide([S|Resto]) :-
-    catch(number_string(_, S), _, fail),
-    stringheValide(Resto).
+    converti_input(Resto, Acc, Coefficienti).
+converti_input([S|Resto], Acc, Coefficienti) :-
+    catch(number_string(F, S), _, fail),
+    converti_input(Resto, [F|Acc], Coefficienti).
 
-/* Il predicato convertiStringheInFloat converte una lista di stringhe numeriche
-   in una lista di valori in virgola mobile:
-   - il primo argomento è la lista di stringhe da convertire;
-   - il secondo argomento è la lista dei valori numerici risultanti.
+/* Il predicato mostra stampa la rappresentazione algebrica di un polinomio, dal grado massimo al minimo:
+   - il suo unico argomento è la lista dei coefficienti del polinomio in ordine crescente di grado.
+   I predicati ausiliari formatta_segno e formatta_monomio sono usati solo qui. */
+mostra(Polinomio) :-
+    rimuovi_zeri_in_testa(Polinomio, Poli_norm),
+    costruisci_coppie_grado_coeff(Poli_norm, Coppie_invertite),
+    formatta_termini(Coppie_invertite, 1).
 
-   Caso base con lista vuota: viene restituita la lista vuota.
-   Caso ricorsivo con stringa non vuota: la testa viene convertita tramite number_string
-   e si procede ricorsivamente sulla coda.
-   Caso ricorsivo con stringa vuota: l'elemento viene saltato e si procede sulla coda. */
-convertiStringheInFloat([], []).
-convertiStringheInFloat([S|Resto], [F|FloatResto]) :-
-    S \= "", !,
-    number_string(F, S),
-    convertiStringheInFloat(Resto, FloatResto).
-convertiStringheInFloat([_|Resto], FloatResto) :-
-    convertiStringheInFloat(Resto, FloatResto).
+/* Il predicato rimuovi_zeri_in_testa elimina gli zeri di testa (grado massimo) di un polinomio:
+   - il primo argomento è la lista dei coefficienti in ordine crescente di grado;
+   - il secondo argomento è la lista risultante, priva degli zeri di testa. */
+rimuovi_zeri_in_testa(Polinomio, Polinomio_norm) :-
+    reverse(Polinomio, Invertito),
+    rimuovi_zeri_da_lista_invertita(Invertito, Invertito_ripulito),
+    reverse(Invertito_ripulito, Polinomio_norm).
+
+% rimuovi_zeri_da_lista_invertita elimina ricorsivamente i coefficienti prossimi a zero a partire dall'inizio della lista invertita dei coefficienti.
+rimuovi_zeri_da_lista_invertita([X|Resto], Risultato) :-
+    tolleranza_numerica(T), abs(X) < T, !,
+    rimuovi_zeri_da_lista_invertita(Resto, Risultato).
+rimuovi_zeri_da_lista_invertita(Lista, Lista).
+
+% costruisci_coppie_grado_coeff costruisce le coppie (grado, coefficiente) di un polinomio, ordinate dal grado massimo al grado minimo.
+costruisci_coppie_grado_coeff(Polinomio, Coppie_invertite) :-
+    accumula_coppie(Polinomio, 0, Coppie),
+    reverse(Coppie, Coppie_invertite).
+
+% accumula_coppie costruisce ricorsivamente le coppie (grado, coefficiente), associando ad ogni coefficiente il proprio grado.
+accumula_coppie([], _, []).
+accumula_coppie([Coeff|Resto], Grado, [(Grado, Coeff)|Coppie_resto]) :-
+    Grado_succ is Grado + 1,
+    accumula_coppie(Resto, Grado_succ, Coppie_resto).
+
+% formatta_termini stampa ricorsivamente i termini di un polinomio a partire dalle coppie (grado, coefficiente), dal grado massimo al minimo.
+formatta_termini([], 1) :- !, write('0').
+formatta_termini([], 0) :- !.
+formatta_termini([(_, Coefficiente)|Resto], E_primo_termine) :-
+    tolleranza_numerica(T), abs(Coefficiente) < T, !,
+    formatta_termini(Resto, E_primo_termine).
+formatta_termini([(Grado, Coefficiente)|Resto], E_primo_termine) :-
+    formatta_segno(Coefficiente, E_primo_termine),
+    Valore_assoluto is abs(Coefficiente),
+    formatta_monomio(Grado, Valore_assoluto),
+    formatta_termini(Resto, 0).
+
+% formatta_segno stampa il segno da anteporre al termine corrente.
+formatta_segno(Coefficiente, 1) :- Coefficiente < 0, !, write('-').
+formatta_segno(_, 1) :- !.
+formatta_segno(Coefficiente, 0) :- Coefficiente < 0, !, write(' - ').
+formatta_segno(_, 0) :- write(' + ').
+
+% formatta_monomio stampa grado e coefficiente di un monomio, omettendo i coefficienti unitari e le potenze 0/1.
+formatta_monomio(0, Coefficiente) :- !, scrivi_valore(Coefficiente).
+formatta_monomio(1, Coefficiente) :-
+    tolleranza_numerica(T), abs(Coefficiente - 1.0) < T, !, write('x').
+formatta_monomio(1, Coefficiente) :- !, scrivi_valore(Coefficiente), write('x').
+formatta_monomio(Grado, Coefficiente) :-
+    tolleranza_numerica(T), abs(Coefficiente - 1.0) < T, !, write('x^'), write(Grado).
+formatta_monomio(Grado, Coefficiente) :-
+    scrivi_valore(Coefficiente), write('x^'), write(Grado).
+
+/* Il predicato scrivi_valore stampa la rappresentazione testuale di un coefficiente,
+   come intero se la parte decimale è trascurabile, altrimenti arrotondato a 4 cifre:
+   - il suo unico argomento è il valore del coefficiente da stampare. */
+scrivi_valore(X) :-
+    tolleranza_numerica(T),
+    Diff is abs(X - round(X)),
+    scrivi_valore_con_precisione(Diff, T, X).
+
+% scrivi_valore_con_precisione stampa X come intero se la differenza dall'intero più vicino è sotto la tolleranza, altrimenti arrotondato a 4 cifre decimali.
+scrivi_valore_con_precisione(Diff, T, X) :- Diff < T, !, R is round(X), write(R).
+scrivi_valore_con_precisione(_, _, X) :- Val is round(X * 10000) / 10000, write(Val).
+
+grado_polinomio([], 0) :- !.
+grado_polinomio(Polinomio, Grado) :-
+    rimuovi_zeri_in_testa(Polinomio, Poli_norm),
+    length(Poli_norm, Lunghezza),
+    Lunghezza > 0, !,
+    Grado is Lunghezza - 1.
+grado_polinomio(_, 0).
+
+/* Il predicato somma calcola la somma di due polinomi:
+   - il primo argomento è il primo polinomio;
+   - il secondo argomento è il secondo polinomio;
+   - il terzo argomento è il polinomio somma. */
+somma([], Secondo_poli, Risultato) :- !, rimuovi_zeri_in_testa(Secondo_poli, Risultato).
+somma(Primo_poli, [], Risultato) :- !, rimuovi_zeri_in_testa(Primo_poli, Risultato).
+somma([C1|Resto1], [C2|Resto2], [Somma|Somme_resto]) :-
+    Somma is C1 + C2,
+    somma(Resto1, Resto2, Somme_resto).
+
+/* Il predicato differenza calcola la differenza tra due polinomi:
+   - il primo argomento è il primo polinomio;
+   - il secondo argomento è il secondo polinomio;
+   - il terzo argomento è il polinomio differenza. */
+differenza([], Secondo_poli, Risultato) :- !, moltiplica_per_scalare(Secondo_poli, -1, Risultato).
+differenza(Primo_poli, [], Risultato) :- !, rimuovi_zeri_in_testa(Primo_poli, Risultato).
+differenza([C1|Resto1], [C2|Resto2], [Diff|Diff_resto]) :-
+    Diff is C1 - C2,
+    differenza(Resto1, Resto2, Diff_resto).
+
+/* Il predicato prodotto calcola il prodotto di due polinomi:
+   - il primo argomento è il primo polinomio;
+   - il secondo argomento è il secondo polinomio;
+   - il terzo argomento è il polinomio prodotto. */
+prodotto([], _, []) :- !.
+prodotto(_, [], []) :- !.
+prodotto([Coeff_testa|Coeff_resto], Secondo_poli, Prodotto) :-
+    moltiplica_per_scalare(Secondo_poli, Coeff_testa, Prodotto_testa),
+    prodotto(Coeff_resto, Secondo_poli, Prodotto_resto),
+    somma(Prodotto_testa, [0.0|Prodotto_resto], Prodotto).
+
+% moltiplica_per_scalare moltiplica ogni coefficiente di un polinomio per uno scalare.
+moltiplica_per_scalare([], _, []).
+moltiplica_per_scalare([Y|Y_resto], Scalare, [Prod|Prod_resto]) :-
+    Prod is Y * Scalare,
+    moltiplica_per_scalare(Y_resto, Scalare, Prod_resto).
+
+/* Il predicato divisione calcola il quoziente e il resto della divisione euclidea tra due polinomi:
+   - il primo argomento è il dividendo;
+   - il secondo argomento è il divisore;
+   - il terzo argomento è il quoziente;
+   - il quarto argomento è il resto.
+   Il predicato fallisce se il divisore è il polinomio nullo. */
+divisione(Dividendo, Divisore, Quoziente, Resto) :-
+    rimuovi_zeri_in_testa(Divisore, Divisore_norm),
+    Divisore_norm \= [], !,
+    rimuovi_zeri_in_testa(Dividendo, Dividendo_norm),
+    passo_div(Dividendo_norm, Divisore_norm, [], Quoziente, Resto).
+
+% passo_div esegue la divisione lunga accumulando il quoziente.
+passo_div(Dividendo_corrente, Divisore, Quoziente_parziale, Quoziente, Resto) :-
+    length(Dividendo_corrente, Lungh_dividendo),
+    length(Divisore, Lungh_divisore),
+    Lungh_dividendo < Lungh_divisore, !,
+    rimuovi_zeri_in_testa(Quoziente_parziale, Quoziente),
+    rimuovi_zeri_in_testa(Dividendo_corrente, Resto).
+
+passo_div(Dividendo_corrente, Divisore, Quoziente_parziale, Quoziente, Resto) :-
+    last(Dividendo_corrente, Coeff_direttore_dividendo),
+    last(Divisore, Coeff_direttore_divisore),
+    length(Dividendo_corrente, Lungh_dividendo),
+    length(Divisore, Lungh_divisore),
+    Coefficiente_del_passo is Coeff_direttore_dividendo / Coeff_direttore_divisore,
+    Differenza_di_grado is Lungh_dividendo - Lungh_divisore,
+    costruisci_monomio(Differenza_di_grado, Coefficiente_del_passo, Termine_corrente),
+    prodotto(Divisore, Termine_corrente, Termine_da_sottrarre),
+    differenza(Dividendo_corrente, Termine_da_sottrarre, Dividendo_ridotto),
+    somma(Quoziente_parziale, Termine_corrente, Quoziente_aggiornato),
+    rimuovi_zeri_in_testa(Dividendo_ridotto, Dividendo_ridotto_norm),
+    passo_div(Dividendo_ridotto_norm, Divisore, Quoziente_aggiornato, Quoziente, Resto).
+
+% costruisci_monomio costruisce un monomio come lista densa di coefficienti, con zeri nelle posizioni di grado inferiore.
+costruisci_monomio(0, Coefficiente, [Coefficiente]) :- !.
+costruisci_monomio(N, Coefficiente, [0.0|Resto]) :-
+    N > 0, N_1 is N - 1,
+    costruisci_monomio(N_1, Coefficiente, Resto).
+
+/* Il predicato mcd calcola il massimo comun divisore di due polinomi tramite l'algoritmo
+   di Euclide, restituendo il risultato reso monico:
+   - il primo argomento è il primo polinomio;
+   - il secondo argomento è il secondo polinomio;
+   - il terzo argomento è il massimo comun divisore. */
+mcd(Poli_a, Poli_b, Mcd) :-
+    rimuovi_zeri_in_testa(Poli_a, Poli_a_norm),
+    rimuovi_zeri_in_testa(Poli_b, Poli_b_norm),
+    algoritmo_euclide(Poli_a_norm, Poli_b_norm, Mcd).
+
+algoritmo_euclide(Poli_a, [], Mcd) :- !, rendi_monico(Poli_a, Mcd).
+algoritmo_euclide(Poli_a, Poli_b, Mcd) :-
+    divisione(Poli_a, Poli_b, _, Resto),
+    algoritmo_euclide(Poli_b, Resto, Mcd).
+
+% rendi_monico divide tutti i coefficienti per il coefficiente direttore (l'ultimo della lista).
+rendi_monico([], []) :- !.
+rendi_monico(Coefficienti, Monico) :-
+    last(Coefficienti, Coeff_direttore),
+    Inverso_coefficiente is 1.0 / Coeff_direttore,
+    moltiplica_per_scalare(Coefficienti, Inverso_coefficiente, Monico).
