@@ -31,8 +31,9 @@ main = do
     putStrLn $ "MCD:          " ++ mostra (mcd pa pb)
 
 grado_polinomio :: [Double] -> Int
-grado_polinomio [] = 0
-grado_polinomio coeff = length (normalizza coeff) - 1
+grado_polinomio coeff = case normalizza coeff of
+  []   -> 0
+  norm -> length norm - 1
 
 {- L'azione parametrica di input/output acquisisci_polinomio acquisisce un polinomio di coefficienti:
    - il suo unico argomento è una stringa che specifica di quale polinomio si tratta. -}
