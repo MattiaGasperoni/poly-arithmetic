@@ -6,24 +6,24 @@
 tolleranza_numerica(1e-6).
 
 main :-
-    acquisisci_polinomio('A', Poli_a),
-    acquisisci_polinomio('B', Poli_b),
-    nl, write('Polinomio A:  '), mostra(Poli_a), nl,
-    write('Polinomio B:  '), mostra(Poli_b), nl,
-    grado_polinomio(Poli_a, Grado_a), write('Grado A:      '), write(Grado_a), nl,
-    grado_polinomio(Poli_b, Grado_b), write('Grado B:      '), write(Grado_b), nl,
-    somma(Poli_a, Poli_b, Somma), write('Somma:        '), mostra(Somma), nl,
-    differenza(Poli_a, Poli_b, Differenza), write('Differenza:   '), mostra(Differenza), nl,
-    prodotto(Poli_a, Poli_b, Prodotto), write('Prodotto:     '), mostra(Prodotto), nl,
-    ( divisione(Poli_a, Poli_b, Quoziente, Resto) ->
+    acquisisci_polinomio('A', Primo_poli),
+    acquisisci_polinomio('B', Secondo_poli),
+    nl, write('Polinomio A:  '), mostra(Primo_poli), nl,
+    write('Polinomio B:  '), mostra(Secondo_poli), nl,
+    grado_polinomio(Primo_poli, Grado_a), write('Grado A:      '), write(Grado_a), nl,
+    grado_polinomio(Secondo_poli, Grado_b), write('Grado B:      '), write(Grado_b), nl,
+    somma(Primo_poli, Secondo_poli, Somma), write('Somma:        '), mostra(Somma), nl,
+    differenza(Primo_poli, Secondo_poli, Differenza), write('Differenza:   '), mostra(Differenza), nl,
+    prodotto(Primo_poli, Secondo_poli, Prodotto), write('Prodotto:     '), mostra(Prodotto), nl,
+    ( divisione(Primo_poli, Secondo_poli, Quoziente, Resto) ->
         write('Quoziente:    '), mostra(Quoziente), nl,
         write('Resto:        '), mostra(Resto), nl
     ; write('Errore:       impossibile dividere per il polinomio nullo.'), nl
     ),
-    mcd(Poli_a, Poli_b, Mcd), write('MCD:          '), mostra(Mcd), nl.
+    mcd(Primo_poli, Secondo_poli, Mcd), write('MCD:          '), mostra(Mcd), nl.
 
-/* Il predicato acquisisci_polinomio acquisisce un polinomio leggendo i suoi coefficienti da tastiera,
-   separati da spazi, in ordine crescente di grado. */
+/* Il predicato acquisisci_polinomio acquisisce un polinomio di coefficienti Double da tastiera,
+   restituendo la lista dei coefficienti in ordine crescente di grado. */
 acquisisci_polinomio(Etichetta, Polinomio) :-
     write('Inserisci i coefficienti del polinomio '), write(Etichetta),
     write(' separati da spazi (ordine crescente): '), nl,
@@ -36,7 +36,8 @@ acquisisci_polinomio(Etichetta, Polinomio) :-
       elabora_input(Etichetta, Lista_stringhe, Polinomio)
     ).
 
-% Elabora e converte l'input testuale in coefficienti numerici, ripetendo l'acquisizione in caso di formato non valido.
+/* Il predicato elabora_input converte l'input testuale in coefficienti numerici tramite converti_input,
+   ripetendo l'acquisizione in caso di formato non valido. */
 elabora_input(_, Lista_stringhe, Polinomio) :-
     converti_input(Lista_stringhe, Coefficienti), !,
     rimuovi_zeri_in_testa(Coefficienti, Polinomio).
@@ -44,7 +45,8 @@ elabora_input(Etichetta, _, Polinomio) :-
     write('ERRORE: L\'input contiene caratteri non numerici o non validi.'), nl, nl,
     acquisisci_polinomio(Etichetta, Polinomio).
 
-% Converti_input converte le stringhe non vuote in coefficienti numerici, scartando le stringhe vuote.
+/* Il predicato converti_input converte le stringhe non vuote in coefficienti numerici,
+   scartando le stringhe vuote generate dagli spazi multipli. */
 converti_input(Lista_stringhe, Coefficienti) :-
     converti_input(Lista_stringhe, [], Coefficienti_invertiti),
     reverse(Coefficienti_invertiti, Coefficienti).
@@ -57,36 +59,50 @@ converti_input([S|Resto], Acc, Coefficienti) :-
     catch(number_string(F, S), _, fail),
     converti_input(Resto, [F|Acc], Coefficienti).
 
-/* Il predicato mostra stampa la rappresentazione algebrica di un polinomio, dal grado massimo al minimo. */
-mostra(Polinomio) :-
-    rimuovi_zeri_in_testa(Polinomio, Poli_norm),
-    costruisci_coppie_grado_coeff(Poli_norm, Coppie_invertite),
-    formatta_termini(Coppie_invertite, 1).
-
-/* Il predicato rimuovi_zeri_in_testa elimina gli zeri di testa (grado massimo) di un polinomio. */
+/* Il predicato rimuovi_zeri_in_testa elimina gli zeri di testa (grado massimo) di un polinomio:
+   il suo primo argomento è la lista dei coefficienti in ordine crescente di grado. */
 rimuovi_zeri_in_testa(Polinomio, Polinomio_norm) :-
     reverse(Polinomio, Invertito),
     rimuovi_zeri_da_lista_invertita(Invertito, Invertito_ripulito),
     reverse(Invertito_ripulito, Polinomio_norm).
 
-% rimuovi_zeri_da_lista_invertita elimina ricorsivamente i coefficienti prossimi a zero.
+% Il predicato ausiliario rimuovi_zeri_da_lista_invertita elimina ricorsivamente
+% i coefficienti di testa (lista invertita) il cui valore assoluto è sotto tolleranza.
 rimuovi_zeri_da_lista_invertita([X|Resto], Risultato) :-
     tolleranza_numerica(T), abs(X) < T, !,
     rimuovi_zeri_da_lista_invertita(Resto, Risultato).
 rimuovi_zeri_da_lista_invertita(Lista, Lista).
 
-% costruisci_coppie_grado_coeff costruisce le coppie (grado, coefficiente) ordinate dal grado massimo al minimo.
+/* Il grado viene calcolato come la lunghezza del polinomio normalizzato meno uno oppure 0 se nullo. */
+grado_polinomio(Polinomio, Grado) :-
+    rimuovi_zeri_in_testa(Polinomio, Poli_norm),
+    length(Poli_norm, Lunghezza),
+    Lunghezza > 0, !,
+    Grado is Lunghezza - 1.
+grado_polinomio(_, 0).
+
+/* Il predicato mostra stampa la rappresentazione algebrica di un polinomio, dal grado massimo al minimo.
+   I predicati ausiliari formatta_segno/2 e formatta_monomio/2 sono utilizzati esclusivamente da questo predicato. */
+mostra(Polinomio) :-
+    rimuovi_zeri_in_testa(Polinomio, Poli_norm),
+    costruisci_coppie_grado_coeff(Poli_norm, Coppie_invertite),
+    formatta_termini(Coppie_invertite, 1).
+
+% Il predicato ausiliario costruisci_coppie_grado_coeff costruisce, tramite accumula_coppie,
+% le coppie (grado, coefficiente) ordinate dal grado massimo al minimo.
 costruisci_coppie_grado_coeff(Polinomio, Coppie_invertite) :-
     accumula_coppie(Polinomio, 0, Coppie),
     reverse(Coppie, Coppie_invertite).
 
-% accumula_coppie associa ad ogni coefficiente il proprio grado.
+% Il predicato ausiliario accumula_coppie associa ad ogni coefficiente il proprio grado,
+% percorrendo il polinomio in ordine crescente a partire dal grado 0.
 accumula_coppie([], _, []).
 accumula_coppie([Coeff|Resto], Grado, [(Grado, Coeff)|Coppie_resto]) :-
     Grado_succ is Grado + 1,
     accumula_coppie(Resto, Grado_succ, Coppie_resto).
 
-% formatta_termini stampa ricorsivamente i termini di un polinomio.
+% Il predicato ausiliario formatta_termini stampa ricorsivamente i termini di un polinomio,
+% dal grado massimo al minimo, saltando i coefficienti nulli.
 formatta_termini([], 1) :- !, write('0').
 formatta_termini([], 0) :- !.
 formatta_termini([(_, Coefficiente)|Resto], E_primo_termine) :-
@@ -98,13 +114,14 @@ formatta_termini([(Grado, Coefficiente)|Resto], E_primo_termine) :-
     formatta_monomio(Grado, Valore_assoluto),
     formatta_termini(Resto, 0).
 
-% formatta_segno stampa il segno da anteporre al termine corrente.
+% Il predicato ausiliario formatta_segno stampa il segno da anteporre al termine corrente.
 formatta_segno(Coefficiente, 1) :- Coefficiente < 0, !, write('-').
 formatta_segno(_, 1) :- !.
 formatta_segno(Coefficiente, 0) :- Coefficiente < 0, !, write(' - ').
 formatta_segno(_, 0) :- write(' + ').
 
-% formatta_monomio stampa grado e coefficiente di un monomio.
+% Il predicato ausiliario formatta_monomio stampa grado e coefficiente di un monomio,
+% omettendo coefficienti unitari e potenze 0/1.
 formatta_monomio(0, Coefficiente) :- !, scrivi_valore(Coefficiente).
 formatta_monomio(1, Coefficiente) :-
     tolleranza_numerica(T), abs(Coefficiente - 1.0) < T, !, write('x').
@@ -114,7 +131,8 @@ formatta_monomio(Grado, Coefficiente) :-
 formatta_monomio(Grado, Coefficiente) :-
     scrivi_valore(Coefficiente), write('x^'), write(Grado).
 
-% scrivi_valore formatta l'output numerico come intero o decimale a 4 cifre.
+/* Il predicato scrivi_valore restituisce la rappresentazione testuale di un coefficiente,
+   come intero se la parte decimale è trascurabile, altrimenti arrotondato a 4 cifre decimali. */
 scrivi_valore(X) :-
     tolleranza_numerica(T),
     Diff is abs(X - round(X)),
@@ -123,41 +141,39 @@ scrivi_valore(X) :-
     ;  Val is round(X * 10000) / 10000, write(Val)
     ).
 
-/* Il predicato grado_polinomio calcola il grado di un polinomio. */
-grado_polinomio(Polinomio, Grado) :-
-    rimuovi_zeri_in_testa(Polinomio, Poli_norm),
-    length(Poli_norm, Lunghezza),
-    Lunghezza > 0, !,
-    Grado is Lunghezza - 1.
-grado_polinomio(_, 0).
-
-/* Il predicato somma calcola la somma di due polinomi normalizzando alla fine O(n). */
+/* Il predicato somma calcola la somma di due polinomi in tempo lineare O(n). */
 somma(Primo_poli, Secondo_poli, Risultato) :-
     somma_liste(Primo_poli, Secondo_poli, R),
     rimuovi_zeri_in_testa(R, Risultato).
 
+% Il predicato ausiliario somma_liste somma termine a termine le due liste di coefficienti,
+% restituendo la coda residua della lista più lunga oltre la fine dell'altra.
 somma_liste([], P2, P2) :- !.
 somma_liste(P1, [], P1) :- !.
 somma_liste([C1|Resto1], [C2|Resto2], [Somma|Somme_resto]) :-
     Somma is C1 + C2,
     somma_liste(Resto1, Resto2, Somme_resto).
 
-/* Il predicato differenza calcola la differenza tra due polinomi normalizzando alla fine O(n). */
+/* Il predicato differenza calcola la differenza tra due polinomi in tempo lineare O(n). */
 differenza(Primo_poli, Secondo_poli, Risultato) :-
     differenza_liste(Primo_poli, Secondo_poli, R),
     rimuovi_zeri_in_testa(R, Risultato).
 
+% Il predicato ausiliario differenza_liste sottrae termine a termine le due liste di coefficienti,
+% cambiando segno alla coda residua del secondo polinomio se il primo termina prima.
 differenza_liste([], Secondo_poli, Risultato) :- !, moltiplica_per_scalare(Secondo_poli, -1, Risultato).
 differenza_liste(Primo_poli, [], Primo_poli) :- !.
 differenza_liste([C1|Resto1], [C2|Resto2], [Diff|Diff_resto]) :-
     Diff is C1 - C2,
     differenza_liste(Resto1, Resto2, Diff_resto).
 
-/* Il predicato prodotto calcola il prodotto senza sovraccaricare la ricorsione interna. */
+/* Il predicato prodotto calcola il prodotto di due polinomi. */
 prodotto(Primo_poli, Secondo_poli, Risultato) :-
     prodotto_liste(Primo_poli, Secondo_poli, R),
     rimuovi_zeri_in_testa(R, Risultato).
 
+% Il predicato ausiliario prodotto_liste calcola il prodotto tramite somma_liste, senza
+% richiamare rimuovi_zeri_in_testa ad ogni passo della ricorsione.
 prodotto_liste([], _, []) :- !.
 prodotto_liste(_, [], []) :- !.
 prodotto_liste([Coeff_testa|Coeff_resto], Secondo_poli, Prodotto) :-
@@ -165,58 +181,63 @@ prodotto_liste([Coeff_testa|Coeff_resto], Secondo_poli, Prodotto) :-
     prodotto_liste(Coeff_resto, Secondo_poli, Prodotto_resto),
     somma_liste(Prodotto_testa, [0.0|Prodotto_resto], Prodotto).
 
-% moltiplica_per_scalare moltiplica ogni coefficiente per uno scalare.
+% Il predicato ausiliario moltiplica_per_scalare moltiplica ogni coefficiente di una lista per uno scalare.
 moltiplica_per_scalare([], _, []).
 moltiplica_per_scalare([Y|Y_resto], Scalare, [Prod|Prod_resto]) :-
     Prod is Y * Scalare,
     moltiplica_per_scalare(Y_resto, Scalare, Prod_resto).
 
-/* Il predicato divisione calcola quoziente e resto. */
+/* Il predicato divisione calcola quoziente e resto della divisione euclidea tra due polinomi. */
 divisione(Dividendo, Divisore, Quoziente, Resto) :-
-    rimuovi_zeri_in_testa(Divisore, Divisore_norm),
-    Divisore_norm \= [], !,
-    rimuovi_zeri_in_testa(Dividendo, Dividendo_norm),
-    divisione_ricorsiva(Dividendo_norm, Divisore_norm, [], Quoziente, Resto).
+    rimuovi_zeri_in_testa(Divisore, Divisore_normalizzato),
+    Divisore_normalizzato \= [], !,
+    rimuovi_zeri_in_testa(Dividendo, Dividendo_normalizzato),
+    divisione_ricorsiva(Dividendo_normalizzato, Divisore_normalizzato, [], Quoziente, Resto).
 
-% divisione_ricorsiva esegue la divisione lunga accumulando il quoziente.
-divisione_ricorsiva(Dividendo_corrente, Divisore, Quoziente_parziale, Quoziente, Resto) :-
-    length(Dividendo_corrente, Lungh_dividendo),
-    length(Divisore, Lungh_divisore),
-    Lungh_dividendo < Lungh_divisore, !,
+% Il predicato ausiliario divisione_ricorsiva esegue la divisione lunga accumulando il quoziente.
+divisione_ricorsiva(Resto_corrente, Divisore_normalizzato, Quoziente_parziale, Quoziente, Resto) :-
+    length(Resto_corrente, Lungh_resto),
+    length(Divisore_normalizzato, Lungh_divisore),
+    Lungh_resto < Lungh_divisore, !,
     rimuovi_zeri_in_testa(Quoziente_parziale, Quoziente),
-    rimuovi_zeri_in_testa(Dividendo_corrente, Resto).
-divisione_ricorsiva(Dividendo_corrente, Divisore, Quoziente_parziale, Quoziente, Resto) :-
-    last(Dividendo_corrente, Coeff_direttore_dividendo),
-    last(Divisore, Coeff_direttore_divisore),
-    length(Dividendo_corrente, Lungh_dividendo),
-    length(Divisore, Lungh_divisore),
-    Coefficiente_del_passo is Coeff_direttore_dividendo / Coeff_direttore_divisore,
-    Differenza_di_grado is Lungh_dividendo - Lungh_divisore,
-    costruisci_monomio(Differenza_di_grado, Coefficiente_del_passo, Termine_corrente),
-    prodotto(Divisore, Termine_corrente, Termine_da_sottrarre),
-    differenza(Dividendo_corrente, Termine_da_sottrarre, Dividendo_ridotto),
-    somma(Quoziente_parziale, Termine_corrente, Quoziente_aggiornato),
-    rimuovi_zeri_in_testa(Dividendo_ridotto, Dividendo_ridotto_norm),
-    divisione_ricorsiva(Dividendo_ridotto_norm, Divisore, Quoziente_aggiornato, Quoziente, Resto).
+    rimuovi_zeri_in_testa(Resto_corrente, Resto).
+divisione_ricorsiva(Resto_corrente, Divisore_normalizzato, Quoziente_parziale, Quoziente, Resto) :-
+    last(Resto_corrente, Coefficiente_direttore_dividendo),
+    last(Divisore_normalizzato, Coefficiente_direttore_divisore),
+    length(Resto_corrente, Lungh_resto),
+    length(Divisore_normalizzato, Lungh_divisore),
+    Coefficiente_termine is Coefficiente_direttore_dividendo / Coefficiente_direttore_divisore,
+    Differenza_grado is Lungh_resto - Lungh_divisore,
+    costruisci_monomio(Differenza_grado, Coefficiente_termine, Termine_quoziente),
+    prodotto(Divisore_normalizzato, Termine_quoziente, Termine_da_sottrarre),
+    differenza(Resto_corrente, Termine_da_sottrarre, Resto_aggiornato),
+    somma(Quoziente_parziale, Termine_quoziente, Quoziente_aggiornato),
+    rimuovi_zeri_in_testa(Resto_aggiornato, Resto_aggiornato_norm),
+    divisione_ricorsiva(Resto_aggiornato_norm, Divisore_normalizzato, Quoziente_aggiornato, Quoziente, Resto).
 
-% costruisci_monomio genera una lista densa con zeri di grado inferiore.
+% Il predicato ausiliario costruisci_monomio genera una lista densa di coefficienti,
+% con zeri nei gradi inferiori, rappresentante un unico monomio.
 costruisci_monomio(0, Coefficiente, [Coefficiente]) :- !.
 costruisci_monomio(N, Coefficiente, [0.0|Resto]) :-
     N > 0, N_1 is N - 1,
     costruisci_monomio(N_1, Coefficiente, Resto).
 
-/* Il predicato mcd calcola il massimo comun divisore di due polinomi. */
-mcd(Poli_a, Poli_b, Mcd) :-
-    rimuovi_zeri_in_testa(Poli_a, Poli_a_norm),
-    rimuovi_zeri_in_testa(Poli_b, Poli_b_norm),
-    algoritmo_euclide(Poli_a_norm, Poli_b_norm, Mcd).
+/* Il predicato mcd calcola il massimo comun divisore di due polinomi tramite l'algoritmo
+   di Euclide, restituendo il risultato reso monico. */
+mcd(Primo_poli, Secondo_poli, Mcd) :-
+    rimuovi_zeri_in_testa(Primo_poli, Primo_poli_norm),
+    rimuovi_zeri_in_testa(Secondo_poli, Secondo_poli_norm),
+    algoritmo_euclide(Primo_poli_norm, Secondo_poli_norm, Mcd).
 
-algoritmo_euclide(Poli_a, [], Mcd) :- !, rendi_monico(Poli_a, Mcd).
-algoritmo_euclide(Poli_a, Poli_b, Mcd) :-
-    divisione(Poli_a, Poli_b, _, Resto),
-    algoritmo_euclide(Poli_b, Resto, Mcd).
+% Il predicato ausiliario algoritmo_euclide applica ricorsivamente l'algoritmo di Euclide
+% ai due polinomi, tramite rendi_monico, fino a ridurre il secondo polinomio al polinomio nullo.
+algoritmo_euclide(Primo_poli, [], Mcd) :- !, rendi_monico(Primo_poli, Mcd).
+algoritmo_euclide(Primo_poli, Secondo_poli, Mcd) :-
+    divisione(Primo_poli, Secondo_poli, _, Resto),
+    algoritmo_euclide(Secondo_poli, Resto, Mcd).
 
-% rendi_monico divide tutti i coefficienti per il coefficiente direttore.
+% Il predicato ausiliario rendi_monico divide tutti i coefficienti per il coefficiente
+% direttore (l'ultimo della lista), tramite moltiplica_per_scalare.
 rendi_monico([], []) :- !.
 rendi_monico(Coefficienti, Monico) :-
     last(Coefficienti, Coeff_direttore),

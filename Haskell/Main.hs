@@ -14,29 +14,24 @@ tolleranza = 1e-6
 main :: IO ()
 main = do
     hSetBuffering stdout NoBuffering
-    pa <- acquisisci_polinomio "A"
-    pb <- acquisisci_polinomio "B"
-    putStrLn $ "\nPolinomio A:  " ++ mostra pa
-    putStrLn $ "Polinomio B:  " ++ mostra pb
-    putStrLn $ "Grado A:      " ++ show (grado_polinomio pa)
-    putStrLn $ "Grado B:      " ++ show (grado_polinomio pb)
-    putStrLn $ "Somma:        " ++ mostra (somma pa pb)
-    putStrLn $ "Differenza:   " ++ mostra (differenza pa pb)
-    putStrLn $ "Prodotto:     " ++ mostra (prodotto pa pb)
-    case divisione pa pb of
+    polinomioA <- acquisisci_polinomio "A"
+    polinomioB <- acquisisci_polinomio "B"
+    putStrLn $ "\nPolinomio A:  " ++ mostra polinomioA
+    putStrLn $ "Polinomio B:  " ++ mostra polinomioB
+    putStrLn $ "Grado A:      " ++ show (grado_polinomio polinomioA)
+    putStrLn $ "Grado B:      " ++ show (grado_polinomio polinomioB)
+    putStrLn $ "Somma:        " ++ mostra (somma polinomioA polinomioB)
+    putStrLn $ "Differenza:   " ++ mostra (differenza polinomioA polinomioB)
+    putStrLn $ "Prodotto:     " ++ mostra (prodotto polinomioA polinomioB)
+    case divisione polinomioA polinomioB of
       Nothing -> putStrLn "Errore:       impossibile dividere per il polinomio nullo."
       Just (quoz, resto) -> do
          putStrLn $ "Quoziente:    " ++ mostra quoz
          putStrLn $ "Resto:        " ++ mostra resto
-    putStrLn $ "MCD:          " ++ mostra (mcd pa pb)
+    putStrLn $ "MCD:          " ++ mostra (mcd polinomioA polinomioB)
 
-grado_polinomio :: [Double] -> Int
-grado_polinomio coeff = case normalizza coeff of
-  []   -> 0
-  norm -> length norm - 1
-
-{- L'azione parametrica di input/output acquisisci_polinomio acquisisce un polinomio di coefficienti:
-   - il suo unico argomento è una stringa che specifica di quale polinomio si tratta. -}
+{- L'azione parametrica di input/output acquisisce un polinomio di coefficienti Double da tastiera, 
+   restituendo la lista dei coefficienti in ordine crescente di grado.-}
 acquisisci_polinomio :: String -> IO [Double]
 acquisisci_polinomio etichetta = do
     putStr $ "Inserisci i coefficienti del polinomio " ++ etichetta ++ " separati da spazi (ordine crescente): "
@@ -48,8 +43,14 @@ acquisisci_polinomio etichetta = do
         Just coeff -> return (normalizza coeff)
         Nothing    -> putStrLn "Formato non valido! Riprova." >> acquisisci_polinomio etichetta
 
-{- La funzione normalizza elimina gli zeri di testa (grado massimo) di un polinomio:
-   - il suo unico argomento è la lista dei coefficienti in ordine crescente di grado. -}
+{- Il grado viene calcolato come la lunghezza del polinomio normalizzato meno uno oppure 0 se nullo.-}
+grado_polinomio :: [Double] -> Int
+grado_polinomio coeff = case normalizza coeff of
+  []   -> 0
+  norm -> length norm - 1
+
+{- La funzione normalizza elimina gli zeri di testa di un polinomio:
+   il suo unico argomento è la lista dei coefficienti in ordine crescente di grado. -}
 normalizza :: [Double] -> [Double]
 normalizza = dropWhileEnd (\c -> abs c < tolleranza)
 
@@ -73,7 +74,7 @@ mostra polinomio = termini (reverse (zip [0..] (normalizza polinomio))) True
     segno c False | c < 0     = " - "
                   | otherwise = " + "
 
-    -- Monomio formatta grado e coefficiente, omettendo coefficienti unitari e potenze 0/1.
+    -- Monomio formatta grado e coefficiente, omettendo coefficienti unitari e potenze 0 e 1.
     monomio :: Int -> Double -> String
     monomio 0 c = formatta_coefficienti c
     monomio 1 c | abs (c - 1) < tolleranza = "x"
@@ -82,7 +83,7 @@ mostra polinomio = termini (reverse (zip [0..] (normalizza polinomio))) True
                 | otherwise                = formatta_coefficienti c ++ "x^" ++ show g
 
 {- La funzione formatta_coefficienti restituisce la rappresentazione testuale di un coefficiente,
-   come intero se la parte decimale è trascurabile, altrimenti arrotondato a 4 cifre:
+   come intero se la parte decimale è trascurabile, altrimenti arrotondato a 4 cifre decimali:
    - il suo unico argomento è il valore del coefficiente. -}
 formatta_coefficienti :: Double -> String
 formatta_coefficienti x
@@ -91,7 +92,7 @@ formatta_coefficienti x
 
 {- La funzione somma calcola la somma di due polinomi in tempo lineare O(n). -}
 somma :: [Double] -> [Double] -> [Double]
-somma pa pb = normalizza (somma' pa pb)
+somma polinomioA polinomioB = normalizza (somma' polinomioA polinomioB)
   where
     somma' [] ys = ys
     somma' xs [] = xs
@@ -99,23 +100,22 @@ somma pa pb = normalizza (somma' pa pb)
 
 {- La funzione differenza calcola la differenza tra due polinomi in tempo lineare O(n). -}
 differenza :: [Double] -> [Double] -> [Double]
-differenza pa pb = normalizza (differenza' pa pb)
+differenza polinomioA polinomioB = normalizza (differenza' polinomioA polinomioB)
   where
     differenza' [] ys = map negate ys
     differenza' xs [] = xs
     differenza' (x:xs) (y:ys) = (x - y) : differenza' xs ys
 
-{- La funzione prodotto calcola il prodotto di due polinomi in modo efficiente, 
-   senza sovraccaricare la ricorsione interna di chiamate a normalizza. -}
+{- La funzione prodotto calcola il prodotto di due polinomi. -}
 prodotto :: [Double] -> [Double] -> [Double]
-prodotto pa pb = normalizza (prodotto' pa pb)
+prodotto polinomioA polinomioB = normalizza (prodotto' polinomioA polinomioB)
   where
     prodotto' [] _ = []
     prodotto' _ [] = []
-    prodotto' (testa : resto) pb' = 
-        somma' (map (* testa) pb') (0 : prodotto' resto pb')
+    prodotto' (testa : resto) polinomioB' = 
+        somma' (map (* testa) polinomioB') (0 : prodotto' resto polinomioB')
     
-    -- Funzione di somma grezza locale per non chiamare normalizza ad ogni passo del prodotto
+    -- Somma locale non normalizzata, usata per evitare di richiamare normalizza ad ogni passo del prodotto.
     somma' [] ys = ys
     somma' xs [] = xs
     somma' (x:xs) (y:ys) = (x + y) : somma' xs ys
@@ -140,7 +140,7 @@ divisione dividendo divisore
 {- La funzione mcd calcola il massimo comun divisore di due polinomi tramite l'algoritmo
    di Euclide, restituendo il risultato reso monico. -}
 mcd :: [Double] -> [Double] -> [Double]
-mcd pa pb = euclide (normalizza pa) (normalizza pb)
+mcd polinomioA polinomioB = euclide (normalizza polinomioA) (normalizza polinomioB)
   where
     euclide a [] = monico a
     euclide a b = case divisione a b of
