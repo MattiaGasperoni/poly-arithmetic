@@ -32,7 +32,7 @@ acquisisci_polinomio(Etichetta, Polinomio) :-
     ( Riga_normalizzata == '' ->
         write('ERRORE: Devi inserire almeno un coefficiente esplicito!'), nl, nl,
         acquisisci_polinomio(Etichetta, Polinomio)
-    ; split_string(Riga_input, " ", " ", Lista_stringhe),
+    ; split_string(Riga_input, " \t", " \t", Lista_stringhe),
       elabora_input(Etichetta, Lista_stringhe, Polinomio)
     ).
 
