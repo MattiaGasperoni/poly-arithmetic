@@ -41,10 +41,9 @@ acquisisci_polinomio :: String -> IO [Double]
 acquisisci_polinomio etichetta = do
     putStr $ "Inserisci i coefficienti del polinomio " ++ etichetta ++ " separati da spazi (ordine crescente): "
     riga <- getLine
-    let token = words riga
-    if null token
-      then putStrLn "Devi inserire almeno un coefficiente esplicito!" >> acquisisci_polinomio etichetta
-      else case mapM readMaybe token of
+    case words riga of
+      [] -> putStrLn "Devi inserire almeno un coefficiente esplicito!" >> acquisisci_polinomio etichetta
+      token -> case mapM readMaybe token of
         Just coeff -> return (normalizza coeff)
         Nothing    -> putStrLn "Formato non valido! Riprova." >> acquisisci_polinomio etichetta
 
