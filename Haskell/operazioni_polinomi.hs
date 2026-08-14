@@ -11,6 +11,11 @@ import Data.List (dropWhileEnd)                           -- necessario per rimu
 tolleranza :: Double
 tolleranza = 1e-6
 
+{- L'azione main coordina l'intero programma: acquisisce i due polinomi,
+   li visualizza, calcola e stampa il grado di ciascuno, la loro somma,
+   differenza e prodotto, il quoziente e il resto della divisione euclidea
+   (segnalando l'eventuale impossibilità di dividere per il polinomio nullo)
+   e il loro massimo comun divisore. -}
 main :: IO ()
 main = do
     hSetBuffering stdout NoBuffering
