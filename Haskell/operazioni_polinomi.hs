@@ -35,8 +35,10 @@ main = do
          putStrLn $ "Resto:        " ++ mostra resto
     putStrLn $ "MCD:          " ++ mostra (mcd polinomioA polinomioB)
 
-{- L'azione parametrica di input/output acquisisce un polinomio di coefficienti Double da tastiera, 
-   restituendo la lista dei coefficienti in ordine crescente di grado.-}
+{- L'azione parametrica di input/output acquisisci_polinomio acquisisce un polinomio di coefficienti
+   Double da tastiera, restituendo la lista dei coefficienti in ordine crescente di grado:
+   - il suo unico argomento è l'etichetta (nome) del polinomio da acquisire, usata nel messaggio
+     mostrato all'utente. -}
 acquisisci_polinomio :: String -> IO [Double]
 acquisisci_polinomio etichetta = do
     putStr $ "Inserisci i coefficienti del polinomio " ++ etichetta ++ " separati da spazi (ordine crescente): "
@@ -47,7 +49,9 @@ acquisisci_polinomio etichetta = do
         Just coeff -> return (normalizza coeff)
         Nothing    -> putStrLn "Formato non valido! Riprova." >> acquisisci_polinomio etichetta
 
-{- Il grado viene calcolato come la lunghezza del polinomio normalizzato meno uno oppure 0 se nullo.-}
+{- La funzione grado_polinomio calcola il grado di un polinomio come la lunghezza del polinomio
+   normalizzato meno uno, oppure 0 se il polinomio è nullo:
+   - il suo unico argomento è la lista dei coefficienti in ordine crescente di grado. -}
 grado_polinomio :: [Double] -> Int
 grado_polinomio coeff = case normalizza coeff of
   []   -> 0
@@ -64,6 +68,11 @@ normalizza = dropWhileEnd (\c -> abs c < tolleranza)
 mostra :: [Double] -> String
 mostra polinomio = termini (reverse (zip [0..] (normalizza polinomio))) True
   where
+    -- La funzione ausiliaria termini stampa ricorsivamente i termini del polinomio:
+    -- - il primo argomento è la lista delle coppie (grado, coefficiente) residue da stampare,
+    --   ordinata dal grado massimo al minimo;
+    -- - il secondo argomento è un flag che indica se il termine da stampare è il primo
+    --   termine non nullo del polinomio.
     termini :: [(Int, Double)] -> Bool -> String
     termini [] True  = "0"
     termini [] False = ""
@@ -71,14 +80,20 @@ mostra polinomio = termini (reverse (zip [0..] (normalizza polinomio))) True
       | abs c < tolleranza = termini resto primo
       | otherwise = segno c primo ++ monomio grado (abs c) ++ termini resto False
 
-    -- Segno restituisce il segno da anteporre al termine corrente.
+    -- La funzione ausiliaria segno restituisce il segno da anteporre al termine corrente:
+    -- - il primo argomento è il coefficiente del termine corrente;
+    -- - il secondo argomento è il flag che indica se il termine è il primo termine
+    --   non nullo del polinomio.
     segno :: Double -> Bool -> String
     segno c True  | c < 0     = "-"
                   | otherwise = ""
     segno c False | c < 0     = " - "
                   | otherwise = " + "
 
-    -- Monomio formatta grado e coefficiente, omettendo coefficienti unitari e potenze 0 e 1.
+    -- La funzione ausiliaria monomio formatta grado e coefficiente, omettendo coefficienti
+    -- unitari e potenze 0 e 1:
+    -- - il primo argomento è il grado del monomio;
+    -- - il secondo argomento è il valore assoluto del coefficiente del monomio.
     monomio :: Int -> Double -> String
     monomio 0 c = formatta_coefficienti c
     monomio 1 c | abs (c - 1) < tolleranza = "x"
@@ -94,43 +109,74 @@ formatta_coefficienti x
   | abs (x - fromIntegral (round x :: Int)) < tolleranza = show (round x :: Int)
   | otherwise = show (fromIntegral (round (x * 10000)) / 10000)
 
-{- La funzione somma calcola la somma di due polinomi in tempo lineare O(n). -}
+{- La funzione somma calcola la somma di due polinomi in tempo lineare O(n):
+   - il primo argomento è la lista dei coefficienti del primo polinomio;
+   - il secondo argomento è la lista dei coefficienti del secondo polinomio;
+   il risultato è la lista dei coefficienti del polinomio somma. -}
 somma :: [Double] -> [Double] -> [Double]
 somma polinomioA polinomioB = normalizza (somma' polinomioA polinomioB)
   where
+    -- La funzione ausiliaria somma' somma termine a termine le due liste di coefficienti,
+    -- restituendo la coda residua della lista più lunga oltre la fine dell'altra:
+    -- - il primo argomento è la lista dei coefficienti del primo polinomio;
+    -- - il secondo argomento è la lista dei coefficienti del secondo polinomio.
     somma' [] ys = ys
     somma' xs [] = xs
     somma' (x:xs) (y:ys) = (x + y) : somma' xs ys
 
-{- La funzione differenza calcola la differenza tra due polinomi in tempo lineare O(n). -}
+{- La funzione differenza calcola la differenza tra due polinomi in tempo lineare O(n):
+   - il primo argomento è la lista dei coefficienti del primo polinomio (minuendo);
+   - il secondo argomento è la lista dei coefficienti del secondo polinomio (sottraendo);
+   il risultato è la lista dei coefficienti del polinomio differenza. -}
 differenza :: [Double] -> [Double] -> [Double]
 differenza polinomioA polinomioB = normalizza (differenza' polinomioA polinomioB)
   where
+    -- La funzione ausiliaria differenza' sottrae termine a termine le due liste di coefficienti,
+    -- cambiando segno alla coda residua del secondo polinomio se il primo termina prima:
+    -- - il primo argomento è la lista dei coefficienti del primo polinomio (minuendo);
+    -- - il secondo argomento è la lista dei coefficienti del secondo polinomio (sottraendo).
     differenza' [] ys = map negate ys
     differenza' xs [] = xs
     differenza' (x:xs) (y:ys) = (x - y) : differenza' xs ys
 
-{- La funzione prodotto calcola il prodotto di due polinomi. -}
+{- La funzione prodotto calcola il prodotto di due polinomi:
+   - il primo argomento è la lista dei coefficienti del primo polinomio;
+   - il secondo argomento è la lista dei coefficienti del secondo polinomio;
+   il risultato è la lista dei coefficienti del polinomio prodotto. -}
 prodotto :: [Double] -> [Double] -> [Double]
 prodotto polinomioA polinomioB = normalizza (prodotto' polinomioA polinomioB)
   where
+    -- La funzione ausiliaria prodotto' calcola il prodotto tramite somma', senza richiamare
+    -- normalizza ad ogni passo della ricorsione:
+    -- - il primo argomento è la lista dei coefficienti del primo polinomio;
+    -- - il secondo argomento è la lista dei coefficienti del secondo polinomio.
     prodotto' [] _ = []
     prodotto' _ [] = []
     prodotto' (testa : resto) polinomioB' = 
         somma' (map (* testa) polinomioB') (0 : prodotto' resto polinomioB')
     
-    -- Somma locale non normalizzata, usata per evitare di richiamare normalizza ad ogni passo del prodotto.
+    -- La funzione ausiliaria somma' è una somma locale non normalizzata, usata per evitare
+    -- di richiamare normalizza ad ogni passo del prodotto:
+    -- - il primo argomento è la lista dei coefficienti del primo addendo;
+    -- - il secondo argomento è la lista dei coefficienti del secondo addendo.
     somma' [] ys = ys
     somma' xs [] = xs
     somma' (x:xs) (y:ys) = (x + y) : somma' xs ys
 
-{- La funzione divisione calcola quoziente e resto della divisione euclidea tra due polinomi. -}
+{- La funzione divisione calcola quoziente e resto della divisione euclidea tra due polinomi:
+   - il primo argomento è la lista dei coefficienti del polinomio dividendo;
+   - il secondo argomento è la lista dei coefficienti del polinomio divisore;
+   il risultato, se il divisore non è il polinomio nullo, è la coppia formata dalla lista dei
+   coefficienti del polinomio quoziente e dalla lista dei coefficienti del polinomio resto. -}
 divisione :: [Double] -> [Double] -> Maybe ([Double], [Double])
 divisione dividendo divisore
   | null (normalizza divisore) = Nothing
   | otherwise = Just (divisione_ricorsiva (normalizza dividendo) (normalizza divisore) [])
   where
-    -- divisione_ricorsiva esegue la divisione lunga accumulando il quoziente.
+    -- La funzione ausiliaria divisione_ricorsiva esegue la divisione lunga accumulando il quoziente:
+    -- - il primo argomento è la lista dei coefficienti del dividendo corrente;
+    -- - il secondo argomento è la lista dei coefficienti del divisore, normalizzata;
+    -- - il terzo argomento è la lista dei coefficienti del quoziente parziale accumulato finora.
     divisione_ricorsiva :: [Double] -> [Double] -> [Double] -> ([Double], [Double])
     divisione_ricorsiva resto_corrente divisore_normalizzato quoziente
       | length resto_corrente < length divisore_normalizzato = (normalizza quoziente, normalizza resto_corrente)
@@ -142,15 +188,24 @@ divisione dividendo divisore
         quoziente_aggiornato = somma quoziente termine_quoziente
 
 {- La funzione mcd calcola il massimo comun divisore di due polinomi tramite l'algoritmo
-   di Euclide, restituendo il risultato reso monico. -}
+   di Euclide, restituendo il risultato reso monico:
+   - il primo argomento è la lista dei coefficienti del primo polinomio;
+   - il secondo argomento è la lista dei coefficienti del secondo polinomio;
+   il risultato è la lista dei coefficienti del polinomio massimo comun divisore. -}
 mcd :: [Double] -> [Double] -> [Double]
 mcd polinomioA polinomioB = euclide (normalizza polinomioA) (normalizza polinomioB)
   where
+    -- La funzione ausiliaria euclide applica ricorsivamente l'algoritmo di Euclide ai due
+    -- polinomi, tramite monico, fino a ridurre il secondo polinomio al polinomio nullo:
+    -- - il primo argomento è la lista dei coefficienti del primo polinomio;
+    -- - il secondo argomento è la lista dei coefficienti del secondo polinomio.
     euclide a [] = monico a
     euclide a b = case divisione a b of
         Nothing        -> monico a
         Just (_, resto) -> euclide b resto
 
-    -- monico divide tutti i coefficienti per il coefficiente direttore (l'ultimo della lista)
+    -- La funzione ausiliaria monico divide tutti i coefficienti per il coefficiente direttore
+    -- (l'ultimo della lista):
+    -- - il suo unico argomento è la lista dei coefficienti da rendere monica.
     monico [] = []
     monico coeff = map (/ last coeff) coeff
