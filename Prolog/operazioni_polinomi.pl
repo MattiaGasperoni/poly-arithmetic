@@ -5,6 +5,11 @@
    tipici dell'aritmetica in virgola mobile. */
 tolleranza_numerica(1e-6).
 
+/* Il predicato main coordina l'intero programma: acquisisce i due polinomi,
+   li visualizza, calcola e stampa il grado di ciascuno, la loro somma,
+   differenza e prodotto, il quoziente e il resto della divisione euclidea
+   (segnalando l'eventuale impossibilità di dividere per il polinomio nullo)
+   e il loro massimo comun divisore. */
 main :-
     acquisisci_polinomio('A', Primo_poli),
     acquisisci_polinomio('B', Secondo_poli),
