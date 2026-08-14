@@ -34,13 +34,13 @@ acquisisci_polinomio(Etichetta, Polinomio) :-
     write(' separati da spazi (ordine crescente): '), nl,
     read_line_to_string(user_input, Riga_input),
     normalize_space(atom(Riga_normalizzata), Riga_input),
-    ( Riga_normalizzata == '' ->
-        write('ERRORE: Devi inserire almeno un coefficiente esplicito!'), nl, nl,
-        acquisisci_polinomio(Etichetta, Polinomio)
-    ; split_string(Riga_input, " \t", " \t", Lista_stringhe),
-      elabora_input(Etichetta, Lista_stringhe, Polinomio)
-    ).
-
+    Riga_normalizzata \= '', !,
+    split_string(Riga_input, " \t", " \t", Lista_stringhe),
+    elabora_input(Etichetta, Lista_stringhe, Polinomio).
+acquisisci_polinomio(Etichetta, Polinomio) :-
+    write('ERRORE: Devi inserire almeno un coefficiente esplicito!'), nl, nl,
+    acquisisci_polinomio(Etichetta, Polinomio).
+    
 /* Il predicato elabora_input converte l'input testuale in coefficienti numerici tramite converti_input,
    ripetendo l'acquisizione in caso di formato non valido. */
 elabora_input(_, Lista_stringhe, Polinomio) :-
