@@ -31,11 +31,7 @@ main :-
     prodotto(Primo_poli, Secondo_poli, Prodotto), write('Prodotto:     '),
                                                   mostra(Prodotto),
                                                   nl,
-    ( divisione(Primo_poli, Secondo_poli, Quoziente, Resto) ->
-        write('Quoziente:    '), mostra(Quoziente), nl,
-        write('Resto:        '), mostra(Resto), nl
-    ; write('Errore:       impossibile dividere per il polinomio nullo.'), nl
-    ),
+    gestisci_divisione(Primo_poli, Secondo_poli),
     mcd(Primo_poli, Secondo_poli, Mcd), write('MCD:          '),
                                         mostra(Mcd),
                                         nl.
@@ -285,6 +281,19 @@ moltiplica_per_scalare([], _, []).
 moltiplica_per_scalare([Y|Y_resto], Scalare, [Prod|Prod_resto]) :-
     Prod is Y * Scalare,
     moltiplica_per_scalare(Y_resto, Scalare, Prod_resto).
+
+/* Il predicato gestisci_divisione coordina la divisione euclidea tra due
+   polinomi e la stampa del quoziente e del resto, segnalando l'eventuale
+   impossibilità di dividere per il polinomio nullo:
+   - il primo argomento è la lista dei coefficienti del polinomio dividendo
+   - il secondo argomento è la lista dei coefficienti del polinomio divisore */
+
+gestisci_divisione(A, B) :-
+    divisione(A, B, Quoziente, Resto), !,
+    write('Quoziente:    '), mostra(Quoziente), nl,
+    write('Resto:        '), mostra(Resto), nl.
+gestisci_divisione(_, _) :-
+    write('Errore:       impossibile dividere per il polinomio nullo.'), nl.
 
 /* Il predicato divisione calcola quoziente e resto della divisione
    euclidea tra due polinomi:
