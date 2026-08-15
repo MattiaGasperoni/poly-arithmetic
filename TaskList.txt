@@ -1,3 +1,0 @@
-1 - Fare un refactor del codice e modificare i nomi delle funzioni se necessario
-2 - Attenzione all'ordine delle funzione, in un file siamo top-down e nell altro bottom-up
-3 - Quando mettiamo i polinomi nulla la divisione non va e rimane in loop
