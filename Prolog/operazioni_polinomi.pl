@@ -3,7 +3,7 @@
 /* La costante tolleranza rappresenta la soglia al di sotto della quale
    un valore Double viene considerato pari a zero, al fine di compensare gli
    errori di arrotondamento tipici dell'aritmetica in virgola mobile */
-tolleranza_numerica(1e-6).
+tolleranza_numerica(0.000001).
 
 /* Il predicato main coordina l'intero programma: acquisisce i due polinomi,
    li visualizza, calcola e stampa il grado di ciascuno, la loro somma,
