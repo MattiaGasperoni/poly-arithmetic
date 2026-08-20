@@ -385,6 +385,19 @@ gestisci_divisione(A, B) :-
     ;  write('Errore:       impossibile dividere per il polinomio nullo.'), nl
     ).
 
+pulisci_polinomio([], []) :- !.
+pulisci_polinomio([C|Resto], [C_pulito|Resto_pulito]) :-
+    tolleranza_numerica(T),
+    ( abs(C) < T -> C_pulito = 0.0 ; C_pulito = C ),
+    pulisci_polinomio(Resto, Resto_pulito).
+
+
+
+
+
+
+
+
 /* Il predicato ausiliario divisione_ricorsiva esegue la divisione lunga
    accumulando il quoziente:
    - il primo argomento è la lista dei coefficienti del dividendo corrente
@@ -397,6 +410,10 @@ gestisci_divisione(A, B) :-
    - il quinto argomento è la lista dei coefficienti del resto
      finale risultante */
 
+divisione_ricorsiva([], _, Quoziente_parziale, Quoziente, []) :- !,
+    rimuovi_zeri_in_testa(Quoziente_parziale, Quoziente).
+
+/* Condizione di stop per grado inferiore */
 divisione_ricorsiva(Resto_corrente,
                     Divisore_normalizzato,
                     Quoziente_parziale,
@@ -407,6 +424,8 @@ divisione_ricorsiva(Resto_corrente,
     Grado_resto < Grado_divisore, !,
     rimuovi_zeri_in_testa(Quoziente_parziale, Quoziente),
     rimuovi_zeri_in_testa(Resto_corrente, Resto).
+
+/* Passo ricorsivo normale */
 divisione_ricorsiva(Resto_corrente,
                     Divisore_normalizzato,
                     Quoziente_parziale,
@@ -466,10 +485,15 @@ mcd(Primo_poli, Secondo_poli, Mcd) :-
    - il terzo argomento è la lista dei coefficienti del massimo comun
      divisore risultante */
 
-algoritmo_euclide(Primo_poli, [], Mcd) :- !, rendi_monico(Primo_poli, Mcd).
 algoritmo_euclide(Primo_poli, Secondo_poli, Mcd) :-
-    divisione(Primo_poli, Secondo_poli, _, Resto),
-    algoritmo_euclide(Secondo_poli, Resto, Mcd).
+    pulisci_polinomio(Secondo_poli, Secondo_poli_pulito),
+    ( Secondo_poli_pulito == []
+    -> rendi_monico(Primo_poli, Mcd)
+    ;  divisione(Primo_poli, Secondo_poli_pulito, _, Resto_grezzo),
+       pulisci_polinomio(Resto_grezzo, Resto_pulito),
+       rimuovi_zeri_in_testa(Resto_pulito, Resto_norm),
+       algoritmo_euclide(Secondo_poli_pulito, Resto_norm, Mcd)
+    ).
 
 /* Il predicato ausiliario rendi_monico divide tutti i coefficienti
    per il coefficiente direttore (l'ultimo della lista), tramite
@@ -479,6 +503,13 @@ algoritmo_euclide(Primo_poli, Secondo_poli, Mcd) :-
 
 rendi_monico([], []) :- !.
 rendi_monico(Coefficienti, Monico) :-
-    last(Coefficienti, Coeff_direttore),
-    Inverso_coefficiente is 1.0 / Coeff_direttore,
-    moltiplica_per_scalare(Coefficienti, Inverso_coefficiente, Monico).
+    rimuovi_zeri_in_testa(Coefficienti, Norm),
+    ( Norm == [] 
+    -> Monico = []
+    ;  last(Norm, Coeff_direttore),
+       ( abs(Coeff_direttore) < 0.000001 
+         -> Monico = [] 
+         ;  Inverso_coefficiente is 1.0 / Coeff_direttore,
+            moltiplica_per_scalare(Norm, Inverso_coefficiente, Monico)
+       )
+    ).
