@@ -1,4 +1,5 @@
 /* Programma Prolog per operazioni ed algoritmi su polinomi */
+/* Versione compatibile con GNU Prolog */
 
 /* La costante tolleranza rappresenta la soglia al di sotto della quale
    un valore Double viene considerato pari a zero, al fine di compensare gli
@@ -36,6 +37,10 @@ main :-
                                         mostra(Mcd),
                                         nl.
 
+/* ==========================================================
+   ACQUISIZIONE INPUT (versione compatibile GNU Prolog)
+   ========================================================== */
+
 /* Il predicato acquisisci_polinomio acquisisce un polinomio di
    coefficienti Double da tastiera, restituendo la lista dei coefficienti
    in ordine crescente di grado:
@@ -46,26 +51,96 @@ main :-
 acquisisci_polinomio(Etichetta, Polinomio) :-
     write('Inserisci i coefficienti del polinomio '), write(Etichetta),
     write(' separati da spazi (ordine crescente): '), nl,
-    read_line_to_string(user_input, Riga_input),
-    normalize_space(string(Riga_normalizzata), Riga_input),
-    Riga_normalizzata \= "", !,
-    split_string(Riga_normalizzata, " \t", " \t", Lista_stringhe),
-    elabora_input(Etichetta, Lista_stringhe, Polinomio).
+    leggi_riga(Codici),
+    Codici \== end_of_file,
+    dividi_in_token(Codici, Token_codici),
+    Token_codici \= [],
+    !,
+    elabora_input(Etichetta, Token_codici, Polinomio).
 acquisisci_polinomio(Etichetta, Polinomio) :-
     write('ERRORE: Devi inserire almeno un coefficiente esplicito!'), nl, nl,
     acquisisci_polinomio(Etichetta, Polinomio).
 
-/* Il predicato elabora_input converte l'input testuale in coefficienti
-   numerici tramite converti_input, ripetendo l'acquisizione in caso di
-   formato non valido:
+/* Aggiungi questo predicato ausiliario per leggere una riga carattere per carattere */
+
+leggi_riga(Codici) :-
+    get_code(C),
+    (   C =:= -1
+    ->  Codici = end_of_file
+    ;   C =:= 10 % LF (Newline)
+    ->  Codici = []
+    ;   C =:= 13 % CR (Carriage Return)
+    ->  (   get_code(C2), (C2 =:= 10 -> true ; unget_code(C2)) ), % Gestione CRLF
+        Codici = []
+    ;   Codici = [C|Resto],
+        leggi_riga_resto(Resto)
+    ).
+
+leggi_riga_resto(Codici) :-
+    get_code(C),
+    (   C =:= -1
+    ->  Codici = []
+    ;   C =:= 10
+    ->  Codici = []
+    ;   C =:= 13
+    ->  (   get_code(C2), (C2 =:= 10 -> true ; unget_code(C2)) ),
+        Codici = []
+    ;   Codici = [C|Resto],
+        leggi_riga_resto(Resto)
+    ).
+
+    
+
+/* Il predicato dividi_in_token spezza una lista di codici carattere
+   sugli spazi/tab, restituendo una lista di token (ciascuno a sua volta
+   una lista di codici), scartando i token vuoti generati da spazi
+   multipli consecutivi:
+   - il primo argomento è la lista di codici da suddividere
+   - il secondo argomento è la lista dei token risultante */
+
+dividi_in_token(Codici, Token) :-
+    dividi_in_token(Codici, [], [], Token).
+
+/* Il predicato ausiliario dividi_in_token/4 scandisce ricorsivamente
+   la lista di codici, accumulando il token corrente carattere per
+   carattere e chiudendolo ogni volta che incontra uno spazio o un tab:
+   - il primo argomento è la lista dei codici residui da scandire
+   - il secondo argomento è l'accumulatore (invertito) del token corrente
+   - il terzo argomento è l'accumulatore (invertito) dei token già chiusi
+   - il quarto argomento è la lista dei token risultante, in ordine */
+
+dividi_in_token([], Acc_corrente, Acc_token, Token) :-
+    aggiungi_token(Acc_corrente, Acc_token, Token_rev),
+    reverse(Token_rev, Token).
+dividi_in_token([C|Resto], Acc_corrente, Acc_token, Token) :-
+    ( (C =:= 0' ; C =:= 0'\t)
+    -> aggiungi_token(Acc_corrente, Acc_token, Acc_token1),
+       dividi_in_token(Resto, [], Acc_token1, Token)
+    ;  dividi_in_token(Resto, [C|Acc_corrente], Acc_token, Token)
+    ).
+
+/* Il predicato ausiliario aggiungi_token chiude il token corrente e lo
+   antepone alla lista dei token già accumulati, ignorando i token vuoti
+   (generati da spazi/tab consecutivi):
+   - il primo argomento è il token corrente (invertito), eventualmente vuoto
+   - il secondo argomento è la lista (invertita) dei token già chiusi
+   - il terzo argomento è la lista (invertita) risultante */
+
+aggiungi_token([], Acc_token, Acc_token) :- !.
+aggiungi_token(Acc_corrente, Acc_token, [Token|Acc_token]) :-
+    reverse(Acc_corrente, Token).
+
+/* Il predicato elabora_input converte i token (liste di codici) in
+   coefficienti numerici tramite converti_input, ripetendo l'acquisizione
+   in caso di formato non valido:
    - il primo argomento è l'etichetta del polinomio, usata per richiedere
      nuovamente l'input in caso di errore
-   - il secondo argomento è la lista delle stringhe ottenute dalla
-     suddivisione della riga letta
+   - il secondo argomento è la lista dei token ottenuti dalla suddivisione
+     della riga letta
    - il terzo argomento è la lista dei coefficienti risultante */
 
-elabora_input(_, Lista_stringhe, Polinomio) :-
-    converti_input(Lista_stringhe, Coefficienti), !,
+elabora_input(_, Token_codici, Polinomio) :-
+    converti_input(Token_codici, Coefficienti), !,
     rimuovi_zeri_in_testa(Coefficienti, Polinomio).
 elabora_input(Etichetta, _, Polinomio) :-
     write('ERRORE: L\'input contiene caratteri non numerici o non validi.'),
@@ -73,28 +148,30 @@ elabora_input(Etichetta, _, Polinomio) :-
          nl,
     acquisisci_polinomio(Etichetta, Polinomio).
 
-/* Il predicato converti_input converte le stringhe non vuote in coefficienti
-   numerici, scartando le stringhe vuote generate dagli spazi multipli:
-   - il primo argomento è la lista delle stringhe da convertire
+/* Il predicato converti_input converte i token non vuoti in coefficienti
+   numerici tramite number_codes/2 (predicato standard ISO, portabile):
+   - il primo argomento è la lista dei token (liste di codici) da convertire
    - il secondo argomento è la lista dei coefficienti numerici risultante */
 
-converti_input(Lista_stringhe, Coefficienti) :-
-    converti_input(Lista_stringhe, [], Coefficienti_invertiti),
+converti_input(Token_codici, Coefficienti) :-
+    converti_input(Token_codici, [], Coefficienti_invertiti),
     reverse(Coefficienti_invertiti, Coefficienti).
 
 /* Il predicato ausiliario converti_input/3 converte ricorsivamente la lista
-  di stringhe in coefficienti, accumulando il risultato in ordine inverso:
-  - il primo argomento è la lista delle stringhe residue da convertire
+  di token in coefficienti, accumulando il risultato in ordine inverso:
+  - il primo argomento è la lista dei token residui da convertire
   - il secondo argomento è l'accumulatore dei coefficienti convertiti finora
   - il terzo argomento è la lista dei coefficienti risultante */
 
 converti_input([], Acc, Acc).
-converti_input([S|Resto], Acc, Coefficienti) :-
-    S == "", !,
-    converti_input(Resto, Acc, Coefficienti).
-converti_input([S|Resto], Acc, Coefficienti) :-
-    catch(number_string(F, S), _, fail),
+converti_input([Cod|Resto], Acc, Coefficienti) :-
+    catch(number_codes(RawF, Cod), _, fail),
+    F is float(RawF),
     converti_input(Resto, [F|Acc], Coefficienti).
+
+/* ==========================================================
+   RESTO DEL PROGRAMMA (già portabile, invariato)
+   ========================================================== */
 
 /* Il predicato rimuovi_zeri_in_testa elimina gli zeri di testa
    (grado massimo) di un polinomio:
@@ -213,10 +290,12 @@ formatta_monomio(Grado, Coefficiente) :-
 
 scrivi_valore(X) :-
     tolleranza_numerica(T),
-    Diff is abs(X - round(X)),
+    RoundX is round(X),
+    Diff is abs(X - RoundX),
     ( Diff < T
-    -> R is round(X), write(R)
-    ;  Val is round(X * 10000) / 10000, write(Val)
+    -> write(RoundX)
+    ; 
+       format('~g', [round(X * 10000) / 10000])
     ).
 
 /* Il predicato grado_polinomio calcola il grado di un polinomio come la
@@ -288,29 +367,23 @@ moltiplica_per_scalare([Y|Y_resto], Scalare, [Prod|Prod_resto]) :-
    - il primo argomento è la lista dei coefficienti del polinomio dividendo
    - il secondo argomento è la lista dei coefficienti del polinomio divisore */
 
-gestisci_divisione(A, B) :-
-    divisione(A, B, Quoziente, Resto), !,
-    write('Quoziente:    '), mostra(Quoziente), nl,
-    write('Resto:        '), mostra(Resto), nl.
-gestisci_divisione(_, _) :-
-    write('Errore:       impossibile dividere per il polinomio nullo.'), nl.
 
-/* Il predicato divisione calcola quoziente e resto della divisione
-   euclidea tra due polinomi:
-   - il primo argomento è la lista dei coefficienti del polinomio dividendo
-   - il secondo argomento è la lista dei coefficienti del polinomio divisore
-   - il terzo argomento è la lista dei coefficienti del polinomio quoziente
-   - il quarto argomento è la lista dei coefficienti del polinomio resto */
-
+/* MODIFICARE COMMENTOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO                                                    */
 divisione(Dividendo, Divisore, Quoziente, Resto) :-
-    rimuovi_zeri_in_testa(Divisore, Divisore_normalizzato),
-    Divisore_normalizzato \= [], !,
-    rimuovi_zeri_in_testa(Dividendo, Dividendo_normalizzato),
-    divisione_ricorsiva(Dividendo_normalizzato,
-                        Divisore_normalizzato,
-                        [],
-                        Quoziente,
-                        Resto).
+    rimuovi_zeri_in_testa(Divisore, Divisore_norm),
+    ( Divisore_norm == [] 
+      -> fail % Fa scattare il messaggio di errore nel gestore
+      ;  rimuovi_zeri_in_testa(Dividendo, Dividendo_norm),
+         divisione_ricorsiva(Dividendo_norm, Divisore_norm, [], Quoziente, Resto)
+    ).
+
+/* Gestore nel main */
+gestisci_divisione(A, B) :-
+    ( divisione(A, B, Q, R)
+    -> write('Quoziente:    '), mostra(Q), nl,
+       write('Resto:        '), mostra(R), nl
+    ;  write('Errore:       impossibile dividere per il polinomio nullo.'), nl
+    ).
 
 /* Il predicato ausiliario divisione_ricorsiva esegue la divisione lunga
    accumulando il quoziente:
@@ -329,9 +402,9 @@ divisione_ricorsiva(Resto_corrente,
                     Quoziente_parziale,
                     Quoziente,
                     Resto) :-
-    length(Resto_corrente, Lungh_resto),
-    length(Divisore_normalizzato, Lungh_divisore),
-    Lungh_resto < Lungh_divisore, !,
+    grado_polinomio(Resto_corrente, Grado_resto),
+    grado_polinomio(Divisore_normalizzato, Grado_divisore),
+    Grado_resto < Grado_divisore, !,
     rimuovi_zeri_in_testa(Quoziente_parziale, Quoziente),
     rimuovi_zeri_in_testa(Resto_corrente, Resto).
 divisione_ricorsiva(Resto_corrente,
@@ -343,8 +416,9 @@ divisione_ricorsiva(Resto_corrente,
     last(Divisore_normalizzato, Coefficiente_direttore_divisore),
     length(Resto_corrente, Lungh_resto),
     length(Divisore_normalizzato, Lungh_divisore),
-    Coefficiente_termine is Coefficiente_direttore_dividendo /
-                            Coefficiente_direttore_divisore,
+    F_div is float(Coefficiente_direttore_dividendo),
+    F_divisore is float(Coefficiente_direttore_divisore),
+    Coefficiente_termine is F_div / F_divisore,
     Differenza_grado is Lungh_resto - Lungh_divisore,
     costruisci_monomio(Differenza_grado,
                        Coefficiente_termine,
