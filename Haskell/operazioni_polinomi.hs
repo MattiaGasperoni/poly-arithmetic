@@ -52,7 +52,7 @@ acquisisci_polinomio :: String -> IO [Double]
 acquisisci_polinomio etichetta = do
     putStr $ "Inserisci i coefficienti del polinomio " ++
              etichetta ++
-             " separati da spazi (ordine crescente): "
+             " separati da spazi (ordine crescente di grado): "
     riga <- getLine
     case words riga of
       [] -> putStrLn "Devi inserire almeno un coefficiente esplicito!" >>
@@ -242,10 +242,10 @@ mcd polinomioA polinomioB = euclide (normalizza polinomioA)
       Caso limite: se entrambi i polinomi sono nulli, il risultato è il
       polinomio nullo [] -}
 
-    euclide a [] = monico a
-    euclide a b = case divisione a b of
-        Nothing        -> monico a
-        Just (_, resto) -> euclide b resto
+    euclide polinomioA [] = monico polinomioA
+    euclide polinomioA polinomioB = case divisione polinomioA polinomioB of
+        Nothing        -> monico polinomioA
+        Just (_, resto) -> euclide polinomioB resto
 
     {- La funzione ausiliaria monico divide tutti i coefficienti per
        il coefficiente direttore (l'ultimo della lista):

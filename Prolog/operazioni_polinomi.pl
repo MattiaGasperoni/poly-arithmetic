@@ -37,10 +37,6 @@ main :-
                                         mostra(Mcd),
                                         nl.
 
-/* ==========================================================
-   ACQUISIZIONE INPUT (versione compatibile GNU Prolog)
-   ========================================================== */
-
 /* Il predicato acquisisci_polinomio acquisisce un polinomio di
    coefficienti Double da tastiera, restituendo la lista dei coefficienti
    in ordine crescente di grado:
@@ -50,7 +46,7 @@ main :-
 
 acquisisci_polinomio(Etichetta, Polinomio) :-
     write('Inserisci i coefficienti del polinomio '), write(Etichetta),
-    write(' separati da spazi (ordine crescente): '), nl,
+    write(' separati da spazi (ordine crescente di grado): '), 
     leggi_riga(Codici),
     Codici \== end_of_file,
     dividi_in_token(Codici, Token_codici),
@@ -289,13 +285,17 @@ formatta_monomio(Grado, Coefficiente) :-
    - il suo unico argomento è il valore del coefficiente da rappresentare */
 
 scrivi_valore(X) :-
-    tolleranza_numerica(T),
-    RoundX is round(X),
-    Diff is abs(X - RoundX),
-    ( Diff < T
-    -> write(RoundX)
-    ; 
-       format('~g', [round(X * 10000) / 10000])
+    ( abs(X) > 1.0e14
+    -> format('~g', [X]) % Se il numero è enorme, delega la stampa al formato nativo
+    ;  tolleranza_numerica(T),
+       RoundX is round(X),
+       Diff is abs(X - RoundX),
+       ( Diff < T
+       -> write(RoundX)
+       ;  % Arrotonda a 4 cifre decimali solo per i numeri sicuri
+          Val_troncato is round(X * 10000) / 10000.0,
+          format('~g', [Val_troncato])
+       )
     ).
 
 /* Il predicato grado_polinomio calcola il grado di un polinomio come la
@@ -378,10 +378,10 @@ divisione(Dividendo, Divisore, Quoziente, Resto) :-
     ).
 
 /* Gestore nel main */
-gestisci_divisione(A, B) :-
-    ( divisione(A, B, Q, R)
-    -> write('Quoziente:    '), mostra(Q), nl,
-       write('Resto:        '), mostra(R), nl
+gestisci_divisione(Dividendo, Divisore) :-
+    ( divisione(Dividendo, Divisore, Quoziente, Resto)
+    -> write('Quoziente:    '), mostra(Quoziente), nl,
+       write('Resto:        '), mostra(Resto), nl
     ;  write('Errore:       impossibile dividere per il polinomio nullo.'), nl
     ).
 
@@ -390,13 +390,6 @@ pulisci_polinomio([C|Resto], [C_pulito|Resto_pulito]) :-
     tolleranza_numerica(T),
     ( abs(C) < T -> C_pulito = 0.0 ; C_pulito = C ),
     pulisci_polinomio(Resto, Resto_pulito).
-
-
-
-
-
-
-
 
 /* Il predicato ausiliario divisione_ricorsiva esegue la divisione lunga
    accumulando il quoziente:
@@ -452,7 +445,7 @@ divisione_ricorsiva(Resto_corrente,
                         Quoziente,
                         Resto).
 
-/* Il predicato ausiliario costruisci_monomio genera una lista densa
+/* Il predicato ausiliario costruisci_monomio genera una lista
    di coefficienti, con zeri nei gradi inferiori, rappresentante un
    unico monomio:
    - il primo argomento è il grado del monomio da costruire
