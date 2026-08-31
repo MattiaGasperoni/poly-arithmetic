@@ -43,48 +43,57 @@ main :-
      usata nel messaggio mostrato all'utente
    - il secondo argomento è la lista dei coefficienti acquisita */
 
+/* Se l'utente chiude lo standard input (EOF) invece di digitare una riga,
+   il programma termina con un messaggio, invece di richiamare se stesso
+   all'infinito come accadeva quando il caso end_of_file non veniva
+   intercettato esplicitamente nella clausola di errore */
+
 acquisisci_polinomio(Etichetta, Polinomio) :-
     write('Inserisci i coefficienti del polinomio '), write(Etichetta),
     write(' separati da spazi (ordine crescente di grado): '), 
     leggi_riga(Codici),
-    Codici \== end_of_file,
-    dividi_in_token(Codici, Token_codici),
-    Token_codici \= [],
-    !,
-    elabora_input(Etichetta, Token_codici, Polinomio).
-acquisisci_polinomio(Etichetta, Polinomio) :-
-    write('ERRORE: Devi inserire almeno un coefficiente esplicito!'), nl, nl,
-    acquisisci_polinomio(Etichetta, Polinomio).
+    ( Codici == end_of_file
+    -> nl, write('Input terminato (EOF). Uscita dal programma.'), nl,
+       halt
+    ;  dividi_in_token(Codici, Token_codici),
+       ( Token_codici \= []
+       -> !, elabora_input(Etichetta, Token_codici, Polinomio)
+       ;  write('ERRORE: Devi inserire almeno un coefficiente esplicito!'),
+          nl, nl,
+          acquisisci_polinomio(Etichetta, Polinomio)
+       )
+    ).
 
-/* Aggiungi questo predicato ausiliario per leggere una riga carattere per carattere */
+/* Il predicato leggi_riga legge una riga da tastiera carattere per
+   carattere, restituendo end_of_file se lo standard input è terminato
+   prima di leggere alcun carattere:
+   - il suo unico argomento è la lista dei codici carattere letti (senza
+     terminatore di riga), oppure l'atomo end_of_file */
 
 leggi_riga(Codici) :-
     get_code(C),
-    (   C =:= -1
-    ->  Codici = end_of_file
-    ;   C =:= 10 % LF (Newline)
-    ->  Codici = []
-    ;   C =:= 13 % CR (Carriage Return)
-    ->  (   get_code(C2), (C2 =:= 10 -> true ; unget_code(C2)) ), % Gestione CRLF
-        Codici = []
-    ;   Codici = [C|Resto],
-        leggi_riga_resto(Resto)
-    ).
+    leggi_riga_da_carattere(C, primo, Codici).
 
-leggi_riga_resto(Codici) :-
-    get_code(C),
-    (   C =:= -1
-    ->  Codici = []
-    ;   C =:= 10
-    ->  Codici = []
-    ;   C =:= 13
-    ->  (   get_code(C2), (C2 =:= 10 -> true ; unget_code(C2)) ),
-        Codici = []
-    ;   Codici = [C|Resto],
-        leggi_riga_resto(Resto)
-    ).
+/* Il predicato ausiliario leggi_riga_da_carattere/3 è l'unico punto in cui
+   è implementata la logica di terminazione di riga (EOF, LF, CR/CRLF),
+   condivisa sia per il primo carattere della riga sia per quelli
+   successivi, eliminando così la duplicazione tra "prima lettura" e
+   "letture seguenti":
+   - il primo argomento è il codice del carattere appena letto
+   - il secondo argomento è l'atomo primo se il carattere è il primo della
+     riga, altro_carattere altrimenti (determina se l'EOF immediato va
+     restituito come end_of_file oppure come riga vuota [])
+   - il terzo argomento è la lista dei codici risultante (o end_of_file,
+     possibile solo se il carattere letto è il primo della riga) */
 
-    
+leggi_riga_da_carattere(-1, primo, end_of_file) :- !.
+leggi_riga_da_carattere(-1, altro_carattere, []) :- !.
+leggi_riga_da_carattere(10, _, []) :- !. % LF (Newline)
+leggi_riga_da_carattere(13, _, []) :- !, % CR, con gestione di un eventuale CRLF
+    get_code(C2), (C2 =:= 10 -> true ; unget_code(C2)).
+leggi_riga_da_carattere(C, _, [C|Resto]) :-
+    get_code(C2),
+    leggi_riga_da_carattere(C2, altro_carattere, Resto).
 
 /* Il predicato dividi_in_token spezza una lista di codici carattere
    sugli spazi/tab, restituendo una lista di token (ciascuno a sua volta
@@ -156,17 +165,42 @@ converti_input(Token_codici, Coefficienti) :-
   di token in coefficienti, accumulando il risultato in ordine inverso:
   - il primo argomento è la lista dei token residui da convertire
   - il secondo argomento è l'accumulatore dei coefficienti convertiti finora
-  - il terzo argomento è la lista dei coefficienti risultante */
+  - il terzo argomento è la lista dei coefficienti risultante
+  Ogni token viene forzato ad avere la sintassi di un float (tramite
+  aggiungi_punto_decimale) PRIMA di essere passato a number_codes: se un
+  token è già un numero puramente intero (senza '.'), number_codes lo
+  interpreterebbe come intero Prolog a dimensione fissa (dipendente dalla
+  piattaforma) prima di convertirlo in float con float/1, con il rischio di
+  un overflow (e quindi di un fallimento) anche per valori tutt'altro che
+  astronomici sulle build a 32 bit. Aggiungendo un punto decimale il token
+  viene invece letto direttamente come float, senza mai passare per un
+  intero a dimensione fissa, esattamente come fa readMaybe in Haskell */
 
 converti_input([], Acc, Acc).
 converti_input([Cod|Resto], Acc, Coefficienti) :-
-    catch(number_codes(RawF, Cod), _, fail),
+    aggiungi_punto_decimale(Cod, Cod_float),
+    catch(number_codes(RawF, Cod_float), _, fail),
     F is float(RawF),
     converti_input(Resto, [F|Acc], Coefficienti).
 
-/* ==========================================================
-   RESTO DEL PROGRAMMA (già portabile, invariato)
-   ========================================================== */
+/* Il predicato ausiliario aggiungi_punto_decimale forza la sintassi
+   dei codici di un token numerico ad essere quella di un float,
+   inserendo ".0" subito prima dell'eventuale esponente ("e"/"E") oppure,
+   in assenza di esponente, in coda al token. Se il token contiene già
+   un punto decimale, viene lasciato invariato:
+   - il primo argomento è la lista dei codici del token originale
+   - il secondo argomento è la lista dei codici risultante, con sintassi
+     sempre valida come float */
+
+aggiungi_punto_decimale(Cod, Cod) :-
+    memberchk(0'., Cod), !.
+aggiungi_punto_decimale(Cod, Cod_float) :-
+    append(Prima_esponente, [E|Dopo_esponente], Cod),
+    ( E == 0'e ; E == 0'E ),
+    !,
+    append(Prima_esponente, [0'., 0'0, E|Dopo_esponente], Cod_float).
+aggiungi_punto_decimale(Cod, Cod_float) :-
+    append(Cod, [0'., 0'0], Cod_float).
 
 /* Il predicato rimuovi_zeri_in_testa elimina gli zeri di testa
    (grado massimo) di un polinomio:
@@ -360,14 +394,17 @@ moltiplica_per_scalare([Y|Y_resto], Scalare, [Prod|Prod_resto]) :-
     Prod is Y * Scalare,
     moltiplica_per_scalare(Y_resto, Scalare, Prod_resto).
 
-/* Il predicato gestisci_divisione coordina la divisione euclidea tra due
-   polinomi e la stampa del quoziente e del resto, segnalando l'eventuale
-   impossibilità di dividere per il polinomio nullo:
+/* Il predicato divisione calcola il quoziente e il resto della divisione
+   euclidea tra due polinomi, delegando il calcolo vero e proprio a
+   divisione_ricorsiva dopo aver normalizzato dividendo e divisore; fallisce
+   se il divisore, una volta normalizzato, risulta il polinomio nullo:
    - il primo argomento è la lista dei coefficienti del polinomio dividendo
-   - il secondo argomento è la lista dei coefficienti del polinomio divisore */
+   - il secondo argomento è la lista dei coefficienti del polinomio divisore
+   - il terzo argomento è la lista dei coefficienti del polinomio quoziente
+     risultante
+   - il quarto argomento è la lista dei coefficienti del polinomio resto
+     risultante */
 
-
-/* MODIFICARE COMMENTOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO                                                    */
 divisione(Dividendo, Divisore, Quoziente, Resto) :-
     rimuovi_zeri_in_testa(Divisore, Divisore_norm),
     ( Divisore_norm == [] 
@@ -376,13 +413,25 @@ divisione(Dividendo, Divisore, Quoziente, Resto) :-
          divisione_ricorsiva(Dividendo_norm, Divisore_norm, [], Quoziente, Resto)
     ).
 
-/* Gestore nel main */
+/* Il predicato gestisci_divisione coordina la divisione euclidea tra due
+   polinomi e la stampa del quoziente e del resto, segnalando l'eventuale
+   impossibilità di dividere per il polinomio nullo:
+   - il primo argomento è la lista dei coefficienti del polinomio dividendo
+   - il secondo argomento è la lista dei coefficienti del polinomio divisore */
+
 gestisci_divisione(Dividendo, Divisore) :-
     ( divisione(Dividendo, Divisore, Quoziente, Resto)
     -> write('Quoziente:    '), mostra(Quoziente), nl,
        write('Resto:        '), mostra(Resto), nl
     ;  write('Errore:       impossibile dividere per il polinomio nullo.'), nl
     ).
+
+/* Il predicato pulisci_polinomio azzera tutti i coefficienti (non solo
+   quelli di grado massimo) il cui valore assoluto è sotto tolleranza,
+   compensando gli errori di arrotondamento che possono comparire in
+   posizioni intermedie del polinomio dopo divisioni ripetute:
+   - il primo argomento è la lista dei coefficienti da ripulire
+   - il secondo argomento è la lista dei coefficienti ripuliti risultante */
 
 pulisci_polinomio([], []) :- !.
 pulisci_polinomio([C|Resto], [C_pulito|Resto_pulito]) :-
@@ -393,6 +442,7 @@ pulisci_polinomio([C|Resto], [C_pulito|Resto_pulito]) :-
 /* Il predicato ausiliario divisione_ricorsiva esegue la divisione lunga
    accumulando il quoziente:
    - il primo argomento è la lista dei coefficienti del dividendo corrente
+     (già normalizzata, cioè priva di zeri di grado massimo)
    - il secondo argomento è la lista dei coefficienti del 
      divisore, normalizzata
    - il terzo argomento è la lista dei coefficienti del quoziente parziale 
@@ -400,22 +450,26 @@ pulisci_polinomio([C|Resto], [C_pulito|Resto_pulito]) :-
    - il quarto argomento è la lista dei coefficienti del quoziente finale
      risultante
    - il quinto argomento è la lista dei coefficienti del resto
-     finale risultante */
+     finale risultante
+   La condizione di arresto confronta direttamente le lunghezze delle due
+   liste (come fa la controparte Haskell), invece di ricalcolare il grado
+   tramite grado_polinomio: essendo Resto_corrente già normalizzato ad ogni
+   chiamata, length/2 dà lo stesso risultato di grado_polinomio+1 ma senza
+   rieseguire inutilmente la normalizzazione, ed è corretto anche quando
+   Resto_corrente è la lista vuota (grado_polinomio dà per convenzione grado
+   0 al polinomio nullo, il che renderebbe il confronto tra gradi impreciso
+   proprio nel caso limite in cui il resto si annulla) */
 
-divisione_ricorsiva([], _, Quoziente_parziale, Quoziente, []) :- !,
-    rimuovi_zeri_in_testa(Quoziente_parziale, Quoziente).
-
-/* Condizione di stop per grado inferiore */
 divisione_ricorsiva(Resto_corrente,
                     Divisore_normalizzato,
                     Quoziente_parziale,
                     Quoziente,
                     Resto) :-
-    grado_polinomio(Resto_corrente, Grado_resto),
-    grado_polinomio(Divisore_normalizzato, Grado_divisore),
-    Grado_resto < Grado_divisore, !,
+    length(Resto_corrente, Lungh_resto),
+    length(Divisore_normalizzato, Lungh_divisore),
+    Lungh_resto < Lungh_divisore, !,
     rimuovi_zeri_in_testa(Quoziente_parziale, Quoziente),
-    rimuovi_zeri_in_testa(Resto_corrente, Resto).
+    Resto = Resto_corrente.
 
 /* Passo ricorsivo normale */
 divisione_ricorsiva(Resto_corrente,
@@ -499,7 +553,8 @@ rendi_monico(Coefficienti, Monico) :-
     ( Norm == [] 
     -> Monico = []
     ;  last(Norm, Coeff_direttore),
-       ( abs(Coeff_direttore) < 0.000001 
+       tolleranza_numerica(T),
+       ( abs(Coeff_direttore) < T
          -> Monico = [] 
          ;  Inverso_coefficiente is 1.0 / Coeff_direttore,
             moltiplica_per_scalare(Norm, Inverso_coefficiente, Monico)

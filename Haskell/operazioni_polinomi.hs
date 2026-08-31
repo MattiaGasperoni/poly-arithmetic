@@ -7,6 +7,11 @@ import System.IO (hSetBuffering, stdout, BufferMode (..))
 import Text.Read (readMaybe)
 -- necessario per rimuovere i coefficienti nulli di grado massimo                              
 import Data.List (dropWhileEnd)                          
+{- necessario per intercettare l'EOF da tastiera in modo pulito (invece di
+   lasciar propagare l'eccezione non gestita di getLine) -}
+import System.IO.Error (isEOFError, catchIOError)
+-- necessario per terminare pulitamente il programma in caso di EOF
+import System.Exit (exitSuccess)
  
 {- La costante tolleranza rappresenta la soglia al di sotto della quale un 
    valore Double viene considerato pari a zero, al fine di compensare gli
@@ -46,21 +51,37 @@ main = do
    un polinomio di coefficienti Double da tastiera, restituendo la lista
    dei coefficienti in ordine crescente di grado:
    - il suo unico argomento è l'etichetta (nome) del polinomio da acquisire,
-     usata nel messaggio mostrato all'utente -}
+     usata nel messaggio mostrato all'utente
+   Se l'utente chiude lo standard input (EOF) invece di digitare una riga,
+   il programma termina con un messaggio invece di sollevare un'eccezione
+   non gestita o, peggio, ripetere la richiesta all'infinito -}
 
 acquisisci_polinomio :: String -> IO [Double]
 acquisisci_polinomio etichetta = do
     putStr $ "Inserisci i coefficienti del polinomio " ++
              etichetta ++
              " separati da spazi (ordine crescente di grado): "
-    riga <- getLine
-    case words riga of
-      [] -> putStrLn "Devi inserire almeno un coefficiente esplicito!" >>
-            acquisisci_polinomio etichetta
-      token -> case mapM readMaybe token of
-        Just coeff -> return (normalizza coeff)
-        Nothing    -> putStrLn "Formato non valido! Riprova." >>
-            acquisisci_polinomio etichetta
+    rigaMaybe <- leggi_riga_sicura
+    case rigaMaybe of
+      Nothing -> do
+        putStrLn "\nInput terminato (EOF). Uscita dal programma."
+        exitSuccess
+      Just riga -> case words riga of
+        [] -> putStrLn "Devi inserire almeno un coefficiente esplicito!" >>
+              acquisisci_polinomio etichetta
+        token -> case mapM readMaybe token of
+          Just coeff -> return (normalizza coeff)
+          Nothing    -> putStrLn "Formato non valido! Riprova." >>
+              acquisisci_polinomio etichetta
+
+{- L'azione leggi_riga_sicura legge una riga da tastiera restituendo
+   Nothing se lo standard input è terminato (EOF), invece di lasciar
+   propagare l'eccezione di getLine -}
+
+leggi_riga_sicura :: IO (Maybe String)
+leggi_riga_sicura =
+    (Just <$> getLine) `catchIOError` \e ->
+        if isEOFError e then return Nothing else ioError e
 
 {- La funzione normalizza elimina gli zeri di testa di un polinomio:
    il suo unico argomento è la lista dei coefficienti in ordine
@@ -107,7 +128,6 @@ mostra polinomio = termini (reverse (zip [0..] (normalizza polinomio))) True
     segno c False | c < 0     = " - "
                   | otherwise = " + "
 
-
     {- La funzione ausiliaria monomio formatta grado e coefficiente,
        omettendo coefficienti unitari e potenze 0 e 1:
        - il primo argomento è il grado del monomio
@@ -127,12 +147,16 @@ mostra polinomio = termini (reverse (zip [0..] (normalizza polinomio))) True
 {- La funzione formatta_coefficienti restituisce la rappresentazione testuale
    di un coefficiente, come intero se la parte decimale è trascurabile,
    altrimenti arrotondato a 4 cifre decimali:
-   - il suo unico argomento è il valore del coefficiente. -}
+   - il suo unico argomento è il valore del coefficiente.
+   Per valori il cui modulo supera 1e14 si evita la conversione a Int
+   (che potrebbe risultare inesatta o non significativa vicino ai limiti
+   di Int) e si delega la stampa a show sul Double originale -}
 
 formatta_coefficienti :: Double -> String
-formatta_coefficienti x 
-  | abs (x - fromIntegral (round x :: Int)) <        
-        tolleranza = show (round x :: Int) 
+formatta_coefficienti x
+  | abs x > 1.0e14 = show x
+  | abs (x - fromIntegral (round x :: Int)) <
+        tolleranza = show (round x :: Int)
   | otherwise = show (fromIntegral (round (x * 10000)) / 10000)
 
 {- La funzione grado_polinomio calcola il grado di un polinomio come la
@@ -235,7 +259,10 @@ mcd polinomioA polinomioB = euclide (normalizza polinomioA)
   where
     {- La funzione ausiliaria euclide applica ricorsivamente l'algoritmo
        di Euclide ai due polinomi, tramite monico, fino a ridurre il secondo
-       polinomio al polinomio nullo:
+       polinomio al polinomio nullo. Ad ogni passo i coefficienti vengono
+       ripuliti con pulisci (non solo quelli di grado massimo, come fa
+       normalizza, ma anche quelli intermedi), per evitare che gli errori
+       di arrotondamento si accumulino nelle divisioni successive:
        - il primo argomento è la lista dei coefficienti del primo polinomio
        - il secondo argomento è la lista dei coefficienti del secondo
          polinomio
@@ -243,9 +270,20 @@ mcd polinomioA polinomioB = euclide (normalizza polinomioA)
       polinomio nullo [] -}
 
     euclide polinomioA [] = monico polinomioA
-    euclide polinomioA polinomioB = case divisione polinomioA polinomioB of
-        Nothing        -> monico polinomioA
-        Just (_, resto) -> euclide polinomioB resto
+    euclide polinomioA polinomioB =
+        case divisione polinomioA (pulisci polinomioB) of
+          Nothing        -> monico polinomioA
+          Just (_, resto) -> euclide (pulisci polinomioB)
+                                     (normalizza (pulisci resto))
+
+    {- La funzione ausiliaria pulisci azzera tutti i coefficienti (non solo
+       quelli di grado massimo) il cui valore assoluto è sotto tolleranza,
+       compensando gli errori di arrotondamento che possono comparire in
+       posizioni intermedie del polinomio dopo divisioni ripetute:
+       - il suo unico argomento è la lista dei coefficienti da ripulire -}
+
+    pulisci :: [Double] -> [Double]
+    pulisci = map (\c -> if abs c < tolleranza then 0 else c)
 
     {- La funzione ausiliaria monico divide tutti i coefficienti per
        il coefficiente direttore (l'ultimo della lista):
