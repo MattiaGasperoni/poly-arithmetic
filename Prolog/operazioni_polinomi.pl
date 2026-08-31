@@ -1,5 +1,4 @@
 /* Programma Prolog per operazioni ed algoritmi su polinomi */
-/* Versione compatibile con GNU Prolog */
 
 /* La costante tolleranza rappresenta la soglia al di sotto della quale
    un valore Double viene considerato pari a zero, al fine di compensare gli
