@@ -323,8 +323,9 @@ mcd polinomio_a polinomio_b = euclide (normalizza polinomio_a)
 
     euclide :: [Double] -> [Double] -> [Double]
     euclide primo []      = monico primo
-    euclide primo secondo = case divisione primo secondo of
-      Just (_, resto) -> euclide secondo (normalizza resto)
+    euclide primo secondo = euclide secondo (normalizza resto)
+      where
+        Just (_, resto) = divisione primo secondo
 
     {- La funzione ausiliaria monico divide tutti i coefficienti di
        un polinomio per il suo coefficiente direttore (l'ultimo della
