@@ -325,7 +325,6 @@ mcd polinomio_a polinomio_b = euclide (normalizza polinomio_a)
     euclide primo []      = monico primo
     euclide primo secondo = case divisione primo secondo of
       Just (_, resto) -> euclide secondo (normalizza resto)
-      Nothing         -> error "mcd: invariante violata, divisore nullo inatteso"
 
     {- La funzione ausiliaria monico divide tutti i coefficienti di
        un polinomio per il suo coefficiente direttore (l'ultimo della
