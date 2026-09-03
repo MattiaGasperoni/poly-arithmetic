@@ -11,7 +11,7 @@ tolleranza_numerica(0.000001).
    polinomi, li visualizza, calcola e stampa il grado di ciascuno, la
    loro somma, differenza e prodotto, il quoziente e il resto della
    divisione euclidea (segnalando l'eventuale impossibilità di
-   dividere per il polinomio nullo) e il loro massimo comun divisore */
+   dividere per il polinomio nullo) e il loro massimo comune divisore */
 
 main :-
     acquisisci_polinomio('A', Primo_poli),
@@ -165,7 +165,7 @@ prosegui_acquisizione(Etichetta, Token, Polinomio) :-
 
 elabora_input(_, Token, Polinomio) :-
     converti_input(Token, Coefficienti), !,
-    rimuovi_zeri_grado_massimo(Coefficienti, Polinomio).
+    normalizza(Coefficienti, Polinomio).
 elabora_input(Etichetta, _, Polinomio) :-
     write('Formato non valido! Riprova.'), nl,
     acquisisci_polinomio(Etichetta, Polinomio).
@@ -193,7 +193,17 @@ converti_input([Token|Resto], Acc, Coefficienti) :-
     aggiungi_punto_decimale(Token, Token_reale),
     catch(number_chars(Numero, Token_reale), _, fail),
     Coefficiente is float(Numero),
+    coefficiente_valido(Coefficiente),
     converti_input(Resto, [Coefficiente|Acc], Coefficienti).
+
+/* Il predicato ausiliario coefficiente_valido scarta i valori non
+   finiti prodotti dall'overflow della conversione (ad esempio 1e400),
+   che renderebbero non terminante il calcolo della divisione e del
+   massimo comune divisore:
+   - il suo unico argomento è il coefficiente da controllare */
+
+coefficiente_valido(Coefficiente) :-
+    abs(Coefficiente) =< 1.0e308.
 
 /* Il predicato ausiliario aggiungi_punto_decimale porta un token
    numerico nella forma sintattica di un numero reale, inserendo la
@@ -216,33 +226,33 @@ aggiungi_punto_decimale(Token, Token_reale) :-
    introducono l'esponente nella notazione scientifica:
    - il suo unico argomento è il carattere da riconoscere */
 
-esponente(e).
+esponente('e').
 esponente('E').
 
-/* Il predicato rimuovi_zeri_grado_massimo elimina i coefficienti
-   nulli di grado massimo di un polinomio, ossia quelli che si
-   trovano in coda alla lista:
+/* Il predicato normalizza elimina i coefficienti nulli di grado
+   massimo di un polinomio, ossia quelli che si trovano in coda alla
+   lista:
    - il primo argomento è la lista dei coefficienti in ordine
      crescente di grado
    - il secondo argomento è la lista dei coefficienti risultante */
 
-rimuovi_zeri_grado_massimo(Polinomio, Polinomio_norm) :-
+normalizza(Polinomio, Polinomio_norm) :-
     reverse(Polinomio, Invertito),
-    rimuovi_zeri_da_lista_invertita(Invertito, Invertito_ripulito),
+    normalizza_lista_invertita(Invertito, Invertito_ripulito),
     reverse(Invertito_ripulito, Polinomio_norm).
 
-/* Il predicato ausiliario rimuovi_zeri_da_lista_invertita elimina
-   ricorsivamente i coefficienti di testa (lista invertita) il cui
+/* Il predicato ausiliario normalizza_lista_invertita elimina
+   ricorsivamente i coefficienti di testa della lista invertita il cui
    valore assoluto è sotto tolleranza:
    - il primo argomento è la lista dei coefficienti in ordine
      invertito (dal grado massimo al minimo)
    - il secondo argomento è la lista risultante, priva dei
      coefficienti di testa sotto tolleranza */
 
-rimuovi_zeri_da_lista_invertita([X|Resto], Risultato) :-
-    tolleranza_numerica(T), abs(X) < T, !,
-    rimuovi_zeri_da_lista_invertita(Resto, Risultato).
-rimuovi_zeri_da_lista_invertita(Lista, Lista).
+normalizza_lista_invertita([Coefficiente|Resto], Risultato) :-
+    tolleranza_numerica(T), abs(Coefficiente) < T, !,
+    normalizza_lista_invertita(Resto, Risultato).
+normalizza_lista_invertita(Lista, Lista).
 
 /* Il predicato mostra stampa la rappresentazione algebrica di un
    polinomio, dal grado massimo al minimo:
@@ -250,7 +260,7 @@ rimuovi_zeri_da_lista_invertita(Lista, Lista).
      da stampare, in ordine crescente di grado */
 
 mostra(Polinomio) :-
-    rimuovi_zeri_grado_massimo(Polinomio, Poli_norm),
+    normalizza(Polinomio, Poli_norm),
     costruisci_coppie_grado_coeff(Poli_norm, Coppie_invertite),
     formatta_termini(Coppie_invertite, primo).
 
@@ -391,7 +401,7 @@ scrivi_cifre_frazionarie(Parte_frazionaria, Peso) :-
    - il secondo argomento è il grado calcolato */
 
 grado_polinomio(Polinomio, Grado) :-
-    rimuovi_zeri_grado_massimo(Polinomio, Poli_norm),
+    normalizza(Polinomio, Poli_norm),
     length(Poli_norm, Lunghezza),
     Lunghezza > 0, !,
     Grado is Lunghezza - 1.
@@ -485,9 +495,9 @@ gestisci_divisione(_, _) :-
      resto */
 
 divisione(Dividendo, Divisore, Quoziente, Resto) :-
-    rimuovi_zeri_grado_massimo(Divisore, Divisore_normalizzato),
+    normalizza(Divisore, Divisore_normalizzato),
     Divisore_normalizzato \== [], !,
-    rimuovi_zeri_grado_massimo(Dividendo, Dividendo_normalizzato),
+    normalizza(Dividendo, Dividendo_normalizzato),
     divisione_ricorsiva(Dividendo_normalizzato,
                         Divisore_normalizzato,
                         [],
@@ -495,7 +505,9 @@ divisione(Dividendo, Divisore, Quoziente, Resto) :-
                         Resto).
 
 /* Il predicato ausiliario divisione_ricorsiva esegue la divisione
-   lunga accumulando il quoziente:
+   lunga accumulando il quoziente, delegando a passo_divisione la
+   scelta tra caso base e caso generale in base alle lunghezze delle
+   due liste, calcolate una sola volta ad ogni passo:
    - il primo argomento è la lista dei coefficienti del dividendo
      corrente, normalizzata
    - il secondo argomento è la lista dei coefficienti del divisore,
@@ -507,41 +519,74 @@ divisione(Dividendo, Divisore, Quoziente, Resto) :-
    - il quinto argomento è la lista dei coefficienti del resto finale
      risultante */
 
-divisione_ricorsiva(Resto_corrente,
+divisione_ricorsiva(Dividendo_corrente,
                     Divisore_normalizzato,
                     Quoziente_parziale,
                     Quoziente,
                     Resto) :-
-    length(Resto_corrente, Lungh_resto),
+    length(Dividendo_corrente, Lungh_dividendo),
     length(Divisore_normalizzato, Lungh_divisore),
-    Lungh_resto < Lungh_divisore,
-    !,
-    rimuovi_zeri_grado_massimo(Quoziente_parziale, Quoziente),
-    rimuovi_zeri_grado_massimo(Resto_corrente, Resto).
-divisione_ricorsiva(Resto_corrente,
+    passo_divisione(Lungh_dividendo,
+                    Lungh_divisore,
+                    Dividendo_corrente,
                     Divisore_normalizzato,
                     Quoziente_parziale,
                     Quoziente,
-                    Resto) :-
-    length(Resto_corrente, Lungh_resto),
-    length(Divisore_normalizzato, Lungh_divisore),
-    Lungh_resto >= Lungh_divisore,
+                    Resto).
+
+/* Il predicato ausiliario passo_divisione conclude la divisione se il
+   grado del dividendo corrente è inferiore a quello del divisore,
+   altrimenti esegue un passo di divisione lunga e prosegue
+   ricorsivamente:
+   - il primo argomento è la lunghezza della lista del dividendo
+     corrente
+   - il secondo argomento è la lunghezza della lista del divisore
+   - il terzo argomento è la lista dei coefficienti del dividendo
+     corrente, normalizzata
+   - il quarto argomento è la lista dei coefficienti del divisore,
+     normalizzata
+   - il quinto argomento è la lista dei coefficienti del quoziente
+     parziale accumulato finora
+   - il sesto argomento è la lista dei coefficienti del quoziente
+     finale risultante
+   - il settimo argomento è la lista dei coefficienti del resto finale
+     risultante */
+
+passo_divisione(Lungh_dividendo,
+                Lungh_divisore,
+                Dividendo_corrente,
+                _,
+                Quoziente_parziale,
+                Quoziente,
+                Resto) :-
+    Lungh_dividendo < Lungh_divisore,
     !,
-    last(Resto_corrente, Direttore_dividendo),
+    normalizza(Quoziente_parziale, Quoziente),
+    normalizza(Dividendo_corrente, Resto).
+passo_divisione(Lungh_dividendo,
+                Lungh_divisore,
+                Dividendo_corrente,
+                Divisore_normalizzato,
+                Quoziente_parziale,
+                Quoziente,
+                Resto) :-
+    last(Dividendo_corrente, Direttore_dividendo),
     last(Divisore_normalizzato, Direttore_divisore),
     Coefficiente_termine is float(Direttore_dividendo) /
                             float(Direttore_divisore),
-    Differenza_grado is Lungh_resto - Lungh_divisore,
+    Differenza_grado is Lungh_dividendo - Lungh_divisore,
     costruisci_monomio(Differenza_grado,
                        Coefficiente_termine,
                        Termine_quoziente),
     prodotto(Divisore_normalizzato,
              Termine_quoziente,
              Termine_da_sottrarre),
-    differenza(Resto_corrente, Termine_da_sottrarre, Resto_aggiornato),
+    differenza(Dividendo_corrente,
+               Termine_da_sottrarre,
+               Dividendo_aggiornato),
     somma(Quoziente_parziale, Termine_quoziente, Quoziente_aggiornato),
-    rimuovi_zeri_grado_massimo(Resto_aggiornato, Resto_aggiornato_norm),
-    divisione_ricorsiva(Resto_aggiornato_norm,
+    normalizza(Dividendo_aggiornato, Dividendo_aggiornato_norm),
+    divisione_ricorsiva(Dividendo_aggiornato_norm,
                         Divisore_normalizzato,
                         Quoziente_aggiornato,
                         Quoziente,
@@ -560,7 +605,7 @@ costruisci_monomio(N, Coefficiente, [0.0|Resto]) :-
     N > 0, N_1 is N - 1,
     costruisci_monomio(N_1, Coefficiente, Resto).
 
-/* Il predicato mcd calcola il massimo comun divisore di due polinomi
+/* Il predicato mcd calcola il massimo comune divisore di due polinomi
    tramite l'algoritmo di Euclide, restituendo il risultato reso
    monico:
    - il primo argomento è la lista dei coefficienti del primo
@@ -571,12 +616,12 @@ costruisci_monomio(N, Coefficiente, [0.0|Resto]) :-
      divisore risultante */
 
 mcd(Primo_poli, Secondo_poli, Mcd) :-
-    rimuovi_zeri_grado_massimo(Primo_poli, Primo_poli_norm),
-    rimuovi_zeri_grado_massimo(Secondo_poli, Secondo_poli_norm),
-    algoritmo_euclide(Primo_poli_norm, Secondo_poli_norm, Mcd).
+    normalizza(Primo_poli, Primo_poli_norm),
+    normalizza(Secondo_poli, Secondo_poli_norm),
+    euclide(Primo_poli_norm, Secondo_poli_norm, Mcd).
 
-/* Il predicato ausiliario algoritmo_euclide applica ricorsivamente
-   l'algoritmo di Euclide ai due polinomi, tramite rendi_monico, fino
+/* Il predicato ausiliario euclide applica ricorsivamente
+   l'algoritmo di Euclide ai due polinomi, tramite monico, fino
    a ridurre il secondo polinomio al polinomio nullo:
    - il primo argomento è la lista dei coefficienti del primo
      polinomio, normalizzata
@@ -585,25 +630,25 @@ mcd(Primo_poli, Secondo_poli, Mcd) :-
    - il terzo argomento è la lista dei coefficienti del massimo comun
      divisore risultante */
 
-algoritmo_euclide(Primo_poli, [], Mcd) :- !,
-    rendi_monico(Primo_poli, Mcd).
-algoritmo_euclide(Primo_poli, Secondo_poli, Mcd) :-
+euclide(Primo_poli, [], Mcd) :- !,
+    monico(Primo_poli, Mcd).
+euclide(Primo_poli, Secondo_poli, Mcd) :-
     divisione(Primo_poli, Secondo_poli, _, Resto),
-    rimuovi_zeri_grado_massimo(Resto, Resto_norm),
-    algoritmo_euclide(Secondo_poli, Resto_norm, Mcd).
+    normalizza(Resto, Resto_norm),
+    euclide(Secondo_poli, Resto_norm, Mcd).
 
-/* Il predicato ausiliario rendi_monico divide tutti i coefficienti
+/* Il predicato ausiliario monico divide tutti i coefficienti
    di un polinomio per il suo coefficiente direttore (l'ultimo della
    lista), tramite moltiplica_per_scalare:
    - il primo argomento è la lista dei coefficienti da rendere monica
    - il secondo argomento è la lista dei coefficienti resa monica
      risultante */
 
-rendi_monico(Coefficienti, Monico) :-
-    rimuovi_zeri_grado_massimo(Coefficienti, Normalizzati),
-    rendi_monico_normalizzato(Normalizzati, Monico).
+monico(Coefficienti, Monico) :-
+    normalizza(Coefficienti, Normalizzati),
+    monico_normalizzato(Normalizzati, Monico).
 
-/* Il predicato ausiliario rendi_monico_normalizzato distingue il
+/* Il predicato ausiliario monico_normalizzato distingue il
    caso del polinomio nullo, per il quale il risultato è il polinomio
    nullo stesso, dal caso generale:
    - il primo argomento è la lista dei coefficienti da rendere
@@ -611,8 +656,8 @@ rendi_monico(Coefficienti, Monico) :-
    - il secondo argomento è la lista dei coefficienti resa monica
      risultante */
 
-rendi_monico_normalizzato([], []) :- !.
-rendi_monico_normalizzato(Coefficienti, Monico) :-
+monico_normalizzato([], []) :- !.
+monico_normalizzato(Coefficienti, Monico) :-
     last(Coefficienti, Coeff_direttore),
     Inverso_coefficiente is 1.0 / Coeff_direttore,
     moltiplica_per_scalare(Coefficienti, Inverso_coefficiente, Monico).

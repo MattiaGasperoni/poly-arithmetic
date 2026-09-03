@@ -6,6 +6,8 @@ module Main where
 import System.IO (hSetBuffering, stdout, BufferMode (..))
 -- necessario per il parsing sicuro dei coefficienti da tastiera
 import Text.Read (readMaybe)
+-- necessario per riconoscere le cifre nei token digitati dall'utente
+import Data.Char (isDigit)
 -- necessario per rimuovere i coefficienti nulli di grado massimo
 import Data.List (dropWhileEnd)
 {- necessario per intercettare l'EOF da tastiera in modo pulito
@@ -26,7 +28,7 @@ tolleranza = 0.000001
    polinomi, li visualizza, calcola e stampa il grado di ciascuno, la
    loro somma, differenza e prodotto, il quoziente e il resto della
    divisione euclidea (segnalando l'eventuale impossibilità di
-   dividere per il polinomio nullo) e il loro massimo comun divisore -}
+   dividere per il polinomio nullo) e il loro massimo comune divisore -}
 
 main :: IO ()
 main = do
@@ -75,10 +77,44 @@ acquisisci_polinomio etichetta = do
       Just riga -> case words riga of
         [] -> putStrLn "Devi inserire almeno un coefficiente esplicito!"
               >> acquisisci_polinomio etichetta
-        token -> case mapM readMaybe token of
+        token_letti -> case mapM leggi_coefficiente token_letti of
           Just coeff -> return (normalizza coeff)
           Nothing    -> putStrLn "Formato non valido! Riprova." >>
                         acquisisci_polinomio etichetta
+
+{- La funzione leggi_coefficiente converte un token digitato
+   dall'utente nel corrispondente coefficiente, restituendo Nothing se
+   il token non rappresenta un numero reale finito in notazione
+   decimale o scientifica:
+   - il suo unico argomento è il token da convertire
+   Il controllo preliminare sui caratteri ammessi esclude le notazioni
+   esadecimale e ottale di Haskell (0x10, 0o10), che altrimenti
+   sarebbero accettate da readMaybe ma non dal programma Prolog -}
+
+leggi_coefficiente :: String -> Maybe Double
+leggi_coefficiente token
+  | all carattere_ammesso token = verifica_coefficiente (readMaybe token)
+  | otherwise                   = Nothing
+  where
+    {- La funzione ausiliaria carattere_ammesso riconosce i caratteri
+       che possono comparire in un coefficiente reale:
+       - il suo unico argomento è il carattere da riconoscere -}
+
+    carattere_ammesso :: Char -> Bool
+    carattere_ammesso carattere = isDigit carattere ||
+                                  elem carattere ".+-eE"
+
+{- La funzione verifica_coefficiente scarta i valori non finiti
+   prodotti dall'overflow della conversione (ad esempio 1e400), che
+   renderebbero non terminante il calcolo della divisione e del
+   massimo comune divisore:
+   - il suo unico argomento è l'esito della conversione del token -}
+
+verifica_coefficiente :: Maybe Double -> Maybe Double
+verifica_coefficiente Nothing = Nothing
+verifica_coefficiente (Just coefficiente)
+  | isNaN coefficiente || isInfinite coefficiente = Nothing
+  | otherwise                                     = Just coefficiente
 
 {- L'azione leggi_riga_sicura legge una riga da tastiera restituendo
    Nothing se lo standard input è terminato (EOF), invece di lasciar
@@ -86,8 +122,18 @@ acquisisci_polinomio etichetta = do
 
 leggi_riga_sicura :: IO (Maybe String)
 leggi_riga_sicura =
-    (Just <$> getLine) `catchIOError` \e ->
-        if isEOFError e then return Nothing else ioError e
+    (Just <$> getLine) `catchIOError` gestisci_errore_lettura
+  where
+    {- L'azione ausiliaria gestisci_errore_lettura restituisce Nothing
+       se l'errore intercettato segnala la fine dell'input, altrimenti
+       propaga l'errore:
+       - il suo unico argomento è l'errore di input/output
+         intercettato -}
+
+    gestisci_errore_lettura :: IOError -> IO (Maybe String)
+    gestisci_errore_lettura errore
+      | isEOFError errore = return Nothing
+      | otherwise         = ioError errore
 
 {- La funzione normalizza elimina i coefficienti nulli di grado
    massimo di un polinomio, ossia quelli che si trovano in coda alla
@@ -102,8 +148,11 @@ normalizza = dropWhileEnd (\c -> abs c < tolleranza)
    polinomio, dal grado massimo al minimo:
    - il suo unico argomento è la lista dei coefficienti in ordine
      crescente di grado
-   Le funzioni ausiliarie termini, segno e monomio sono usate solo
-   qui, da cui il where -}
+   Le funzioni ausiliarie termini, segno e monomio dipendono dalla
+   struttura del polinomio da stampare e sono usate solo qui, da cui
+   il where; le funzioni di formattazione del singolo coefficiente
+   sono invece indipendenti dal polinomio e definite a livello
+   globale -}
 
 mostra :: [Double] -> String
 mostra polinomio =
@@ -221,21 +270,25 @@ grado_polinomio coeff = case normalizza coeff of
    normalizzata -}
 
 somma :: [Double] -> [Double] -> [Double]
-somma [] ys = ys
-somma xs [] = xs
-somma (x : xs) (y : ys) = (x + y) : somma xs ys
+somma [] coeff_b = coeff_b
+somma coeff_a [] = coeff_a
+somma (testa_a : resto_a) (testa_b : resto_b) =
+    (testa_a + testa_b) : somma resto_a resto_b
 
 {- La funzione differenza calcola la differenza tra due polinomi in
    tempo lineare O(n):
-   - il primo argomento è la lista dei coefficienti del primo polinomio
-   - il secondo argomento è la lista dei coefficienti del secondo polinomio
+   - il primo argomento è la lista dei coefficienti del primo
+     polinomio
+   - il secondo argomento è la lista dei coefficienti del secondo
+     polinomio
    il risultato è la lista dei coefficienti del polinomio differenza,
    non normalizzata -}
 
 differenza :: [Double] -> [Double] -> [Double]
-differenza [] ys = map negate ys
-differenza xs [] = xs
-differenza (x : xs) (y : ys) = (x - y) : differenza xs ys
+differenza [] coeff_b = map negate coeff_b
+differenza coeff_a [] = coeff_a
+differenza (testa_a : resto_a) (testa_b : resto_b) =
+    (testa_a - testa_b) : differenza resto_a resto_b
 
 {- La funzione prodotto calcola il prodotto di due polinomi:
    - il primo argomento è la lista dei coefficienti del primo
@@ -248,8 +301,9 @@ differenza (x : xs) (y : ys) = (x - y) : differenza xs ys
 prodotto :: [Double] -> [Double] -> [Double]
 prodotto [] _ = []
 prodotto _ [] = []
-prodotto (testa : resto) polinomio_b =
-    somma (map (* testa) polinomio_b) (0 : prodotto resto polinomio_b)
+prodotto (testa_a : resto_a) polinomio_b =
+    somma (map (* testa_a) polinomio_b)
+          (0 : prodotto resto_a polinomio_b)
 
 {- La funzione divisione calcola quoziente e resto della divisione
    euclidea tra due polinomi:
@@ -279,25 +333,25 @@ divisione dividendo divisore
 
     divisione_ricorsiva :: [Double] -> [Double] -> [Double] ->
                            ([Double], [Double])
-    divisione_ricorsiva resto_corrente divisore_norm quoziente
-      | length resto_corrente < length divisore_norm =
-          (normalizza quoziente, normalizza resto_corrente)
-      | otherwise = divisione_ricorsiva resto_aggiornato
+    divisione_ricorsiva dividendo_corrente divisore_norm quoziente
+      | length dividendo_corrente < length divisore_norm =
+          (normalizza quoziente, normalizza dividendo_corrente)
+      | otherwise = divisione_ricorsiva dividendo_aggiornato
                                         divisore_norm
                                         quoziente_aggiornato
       where
-        coefficiente_termine = last resto_corrente /
+        coefficiente_termine = last dividendo_corrente /
                                last divisore_norm
-        termine_quoziente    = replicate (length resto_corrente -
+        termine_quoziente    = replicate (length dividendo_corrente -
                                           length divisore_norm) 0 ++
                                [coefficiente_termine]
-        resto_aggiornato     = normalizza
-                                 (differenza resto_corrente
+        dividendo_aggiornato = normalizza
+                                 (differenza dividendo_corrente
                                     (prodotto divisore_norm
                                               termine_quoziente))
         quoziente_aggiornato = somma quoziente termine_quoziente
 
-{- La funzione mcd calcola il massimo comun divisore di due polinomi
+{- La funzione mcd calcola il massimo comune divisore di due polinomi
    tramite l'algoritmo di Euclide, restituendo il risultato reso
    monico:
    - il primo argomento è la lista dei coefficienti del primo
@@ -323,9 +377,22 @@ mcd polinomio_a polinomio_b = euclide (normalizza polinomio_a)
 
     euclide :: [Double] -> [Double] -> [Double]
     euclide primo []      = monico primo
-    euclide primo secondo = euclide secondo (normalizza resto)
-      where
-        Just (_, resto) = divisione primo secondo
+    euclide primo secondo = euclide secondo
+                              (normalizza (resto_divisione primo
+                                                           secondo))
+
+    {- La funzione ausiliaria resto_divisione estrae il resto della
+       divisione euclidea tra due polinomi:
+       - il primo argomento è la lista dei coefficienti del dividendo
+       - il secondo argomento è la lista dei coefficienti del divisore
+       Il divisore non è mai il polinomio nullo quando la funzione
+       viene invocata da euclide, per cui il secondo caso non si
+       verifica mai ed è presente solo per esaustività -}
+
+    resto_divisione :: [Double] -> [Double] -> [Double]
+    resto_divisione primo secondo = case divisione primo secondo of
+      Just (_, resto) -> resto
+      Nothing         -> []
 
     {- La funzione ausiliaria monico divide tutti i coefficienti di
        un polinomio per il suo coefficiente direttore (l'ultimo della
