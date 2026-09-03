@@ -20,7 +20,7 @@ import System.Exit (exitSuccess)
    virgola mobile -}
 
 tolleranza :: Double
-tolleranza = 1e-6
+tolleranza = 0.000001
 
 {- L'azione main coordina l'intero programma: acquisisce i due
    polinomi, li visualizza, calcola e stampa il grado di ciascuno, la
@@ -324,8 +324,8 @@ mcd polinomio_a polinomio_b = euclide (normalizza polinomio_a)
     euclide :: [Double] -> [Double] -> [Double]
     euclide primo []      = monico primo
     euclide primo secondo = case divisione primo secondo of
-      Nothing         -> monico primo
       Just (_, resto) -> euclide secondo (normalizza resto)
+      Nothing         -> error "mcd: invariante violata, divisore nullo inatteso"
 
     {- La funzione ausiliaria monico divide tutti i coefficienti di
        un polinomio per il suo coefficiente direttore (l'ultimo della
