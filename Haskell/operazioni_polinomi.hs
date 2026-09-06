@@ -82,6 +82,25 @@ acquisisci_polinomio etichetta = do
           Nothing    -> putStrLn "Formato non valido! Riprova." >>
                         acquisisci_polinomio etichetta
 
+{- L'azione leggi_riga_sicura legge una riga da tastiera restituendo
+   Nothing se lo standard input è terminato (EOF), invece di lasciar
+   propagare l'eccezione di getLine -}
+
+leggi_riga_sicura :: IO (Maybe String)
+leggi_riga_sicura =
+    (Just <$> getLine) `catchIOError` gestisci_errore_lettura
+  where
+    {- L'azione ausiliaria gestisci_errore_lettura restituisce Nothing
+       se l'errore intercettato segnala la fine dell'input, altrimenti
+       propaga l'errore:
+       - il suo unico argomento è l'errore di input/output
+         intercettato -}
+
+    gestisci_errore_lettura :: IOError -> IO (Maybe String)
+    gestisci_errore_lettura errore
+      | isEOFError errore = return Nothing
+      | otherwise         = ioError errore
+
 {- La funzione leggi_coefficiente converte un token digitato
    dall'utente nel corrispondente coefficiente, restituendo Nothing se
    il token non rappresenta un numero reale finito in notazione
@@ -115,25 +134,6 @@ verifica_coefficiente Nothing = Nothing
 verifica_coefficiente (Just coefficiente)
   | isNaN coefficiente || isInfinite coefficiente = Nothing
   | otherwise                                     = Just coefficiente
-
-{- L'azione leggi_riga_sicura legge una riga da tastiera restituendo
-   Nothing se lo standard input è terminato (EOF), invece di lasciar
-   propagare l'eccezione di getLine -}
-
-leggi_riga_sicura :: IO (Maybe String)
-leggi_riga_sicura =
-    (Just <$> getLine) `catchIOError` gestisci_errore_lettura
-  where
-    {- L'azione ausiliaria gestisci_errore_lettura restituisce Nothing
-       se l'errore intercettato segnala la fine dell'input, altrimenti
-       propaga l'errore:
-       - il suo unico argomento è l'errore di input/output
-         intercettato -}
-
-    gestisci_errore_lettura :: IOError -> IO (Maybe String)
-    gestisci_errore_lettura errore
-      | isEOFError errore = return Nothing
-      | otherwise         = ioError errore
 
 {- La funzione normalizza elimina i coefficienti nulli di grado
    massimo di un polinomio, ossia quelli che si trovano in coda alla
@@ -381,6 +381,16 @@ mcd polinomio_a polinomio_b = euclide (normalizza polinomio_a)
                               (normalizza (resto_divisione primo
                                                            secondo))
 
+    {- La funzione ausiliaria monico divide tutti i coefficienti di
+       un polinomio per il suo coefficiente direttore (l'ultimo della
+       lista):
+       - il suo unico argomento è la lista dei coefficienti da
+         rendere monica -}
+
+    monico :: [Double] -> [Double]
+    monico []    = []
+    monico coeff = map (/ last coeff) coeff
+
     {- La funzione ausiliaria resto_divisione estrae il resto della
        divisione euclidea tra due polinomi:
        - il primo argomento è la lista dei coefficienti del dividendo
@@ -393,13 +403,3 @@ mcd polinomio_a polinomio_b = euclide (normalizza polinomio_a)
     resto_divisione primo secondo = case divisione primo secondo of
       Just (_, resto) -> resto
       Nothing         -> []
-
-    {- La funzione ausiliaria monico divide tutti i coefficienti di
-       un polinomio per il suo coefficiente direttore (l'ultimo della
-       lista):
-       - il suo unico argomento è la lista dei coefficienti da
-         rendere monica -}
-
-    monico :: [Double] -> [Double]
-    monico []    = []
-    monico coeff = map (/ last coeff) coeff

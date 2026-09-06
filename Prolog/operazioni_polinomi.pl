@@ -196,15 +196,6 @@ converti_input([Token|Resto], Acc, Coefficienti) :-
     coefficiente_valido(Coefficiente),
     converti_input(Resto, [Coefficiente|Acc], Coefficienti).
 
-/* Il predicato ausiliario coefficiente_valido scarta i valori non
-   finiti prodotti dall'overflow della conversione (ad esempio 1e400),
-   che renderebbero non terminante il calcolo della divisione e del
-   massimo comune divisore:
-   - il suo unico argomento è il coefficiente da controllare */
-
-coefficiente_valido(Coefficiente) :-
-    abs(Coefficiente) =< 1.0e308.
-
 /* Il predicato ausiliario aggiungi_punto_decimale porta un token
    numerico nella forma sintattica di un numero reale, inserendo la
    parte decimale nulla prima dell'eventuale esponente oppure, in sua
@@ -228,6 +219,15 @@ aggiungi_punto_decimale(Token, Token_reale) :-
 
 esponente('e').
 esponente('E').
+
+/* Il predicato ausiliario coefficiente_valido scarta i valori non
+   finiti prodotti dall'overflow della conversione (ad esempio 1e400),
+   che renderebbero non terminante il calcolo della divisione e del
+   massimo comune divisore:
+   - il suo unico argomento è il coefficiente da controllare */
+
+coefficiente_valido(Coefficiente) :-
+    abs(Coefficiente) =< 1.0e308.
 
 /* Il predicato normalizza elimina i coefficienti nulli di grado
    massimo di un polinomio, ossia quelli che si trovano in coda alla
