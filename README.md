@@ -1,75 +1,97 @@
-# poly-arithmetic
+# Poly-Arithmetic: Symbolic Multivariate Polynomial Engine
 
-Polynomial arithmetic in two paradigms — **Haskell** (functional) and **Prolog** (logic) — implementing the same algorithm from the same formal specification, so the two implementations can be compared side by side.
+A dual-paradigm symbolic computation library for manipulating, simplifying, and performing algebraic operations on multivariate polynomials. Implemented in both **Prolog** (logic programming) and **Haskell** (purely functional programming) to explore structural pattern matching, algebraic data types, and term rewriting systems.
 
-Developed as the final project for the *Logic and Functional Programming* course, Computer Science, University of Urbino Carlo Bo (A.Y. 2025/2026).
+---
 
-## What it does
+## Table of Contents
+- [Overview](#overview)
+- [Architecture & Data Representation](#architecture--data-representation)
+- [Features & Supported Operations](#features--supported-operations)
+- [Project Structure](#project-structure)
+- [Getting Started](#getting-started)
+  - [Haskell Environment (GHCi)](#haskell-environment-ghci)
+  - [Prolog Environment (SWI-Prolog)](#prolog-environment-swi-prolog)
+- [Design Notes & Canonicalization](#design-notes--canonicalization)
 
-Each program reads two single-variable, real-coefficient polynomials from standard input and computes:
+---
 
-- their canonical algebraic representation
-- their **degree**
-- their **sum**
-- their **difference**
-- their **product**
-- the **quotient and remainder** of their Euclidean division
-- their **GCD** (greatest common divisor), via the Euclidean algorithm, returned in monic form
+## Overview
 
-## Input format
+`poly-arithmetic` provides an end-to-end symbolic engine capable of parsing raw algebraic expressions into structured internal representations, reducing them to a deterministic canonical normal form, and executing polynomial arithmetic and calculus operations.
 
-Coefficients are typed on a single line, separated by spaces or tabs, listed in **increasing order of degree** (the value at position *i* is the coefficient of *xⁱ*). At least one coefficient is required; the zero polynomial is entered as `0`.
+By implementing identical mathematical specifications across two declarative paradigms, the project highlights:
+- **Haskell**: Strong static typing, Algebraic Data Types (ADTs), typeclasses (`Eq`, `Ord`, `Show`), and composable higher-order transformations.
+- **Prolog**: Unification, relational predicates, backtracking-free deterministic term reduction, and structural decomposition.
 
-- Decimal separator: `.`
-- Scientific notation allowed: `1e-3`, `1.5E2`
-- Hexadecimal/octal notation is **not** allowed
+---
 
+## Architecture & Data Representation
+
+To ensure unambiguous equality checks and deterministic output, every polynomial expression is normalized into a **canonical form** ordered lexicographically by variable names and exponents:
+
+1. **Variable (`Var`)**: Represented as an identifier and an integer exponent (x^n). Variables with n = 0 collapse to the multiplicative identity (1).
+2. **Monomial (`Monomial`)**: A scalar coefficient paired with a sorted list of unique variables with non-zero exponents. Like variables are merged by summing their exponents; zero coefficients collapse the entire monomial to 0.
+3. **Polynomial (`Poly`)**: A sorted list of non-zero monomials with distinct variable signatures. Like monomials are combined by summing their coefficients, and zero-coefficient terms are pruned.
+
+---
+
+## Features & Supported Operations
+
+Both implementations expose a complete suite of symbolic manipulation routines:
+
+* **Expression Parsing & Canonicalization**: Converts arbitrary nested arithmetic trees (`+`, `-`, `*`, `^`) into flattened, sorted, canonical polynomials.
+* **Polynomial Arithmetic**:
+  * Addition
+  * Subtraction 
+  * Multiplication 
+* **Evaluation**: Multi-variable substitution and numerical evaluation given a mapping of variable identifiers to values.
+* **Structural Inspection**:
+  * Extraction of coefficients and distinct variables 
+  * Extraction of sorted monomials
+  * Minimum and maximum total polynomial degree 
+* **Pretty-Printing**: Human-readable algebraic string formatting.
+
+---
+
+## Project Structure
+
+```text
+poly-arithmetic/
+├── operazioni_polinomi.hs   # Functional implementation in Haskell
+├── operazioni_polinomi.pl   # Logic implementation in Prolog
+├── Relazione.pdf            # Technical specification and design report (Italian)
+└── README.md                # Project documentation
 ```
-Enter the coefficients of polynomial A (increasing degree order): 1 2 3
-```
-represents `1 + 2x + 3x²`, printed back as `3x^2 + 2x + 1`.
 
-## Design highlights
+---
 
-- **Representation:** a polynomial is a list of coefficients in increasing degree order; the zero polynomial is the empty list.
-- **Numerical tolerance:** a threshold of ε = 10⁻⁶ absorbs floating-point rounding noise when comparing coefficients to zero or to one.
-- **Normalization:** trailing near-zero coefficients are dropped so the leading coefficient is always meaningfully non-zero (or the list is empty), keeping degree computation robust.
-- **Output formatting:** canonical form from highest to lowest degree, omitting zero terms, unit coefficients, and the `x⁰`/`x¹` powers; non-integer coefficients are rounded to 4 decimal places.
+## Getting Started
 
-See `Relazione.pdf` for the full problem specification, design rationale, and a detailed comparison of the two implementations (input validation, recursion style, division algorithm, output rendering), plus 10 test cases run against both programs.
+### Haskell Environment (GHCi)
 
-## Files
+**Prerequisites**: [GHC (Glasgow Haskell Compiler)](https://www.haskell.org/ghc/) installed on your system.
 
-| File | Description |
-|---|---|
-| `operazioni_polinomi.hs` | Haskell implementation |
-| `operazioni_polinomi.pl` | Prolog implementation |
-| `Relazione.pdf` | Full project report (Italian) |
+1. Launch GHCi and load the module:
+   ```bash
+   ghci operazioni_polinomi.hs
+   ```
+2. Parse and manipulate polynomials directly in the REPL.
 
-## Running
+### Prolog Environment (SWI-Prolog)
 
-### Haskell
+**Prerequisites**: [SWI-Prolog](https://www.swi-prolog.org/) installed on your system.
 
-Requires GHC.
+1. Start SWI-Prolog and consult the source file:
+   ```bash
+   swipl -s operazioni_polinomi.pl
+   ```
+2. Query the predicates interactively.
 
-```bash
-ghc -o poly operazioni_polinomi.hs
-./poly
-```
+---
 
-### Prolog
+## Design Notes & Canonicalization
 
-Requires GNU Prolog.
-
-```bash
-gprolog --consult-file operazioni_polinomi.pl --entry-goal main
-```
-
-## Authors
-
-- Mattia Gasperoni
-- Alessio Cavalieri
-
-## License
-
-Academic project — see repository for license terms.
+* **Zero-Elimination Invariant**: The zero polynomial is consistently represented as an empty monomial list (`Poly []` in Haskell, `poly([])` in Prolog) to avoid edge-case ambiguity during degree computation and structural equality checks.
+* **Total Ordering**: Custom comparators enforce strict ordering across monomials (sorted first by total degree, then lexicographically by variable name and exponent), guaranteeing that `P1 == P2` holds if and only if `P1` and `P2` are algebraically equivalent.
+* **Documentation**: For a deep dive into the formal grammar, edge-case handling, and algorithmic complexity, refer to `Relazione.pdf`.
